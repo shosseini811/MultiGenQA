@@ -10,7 +10,10 @@ It's like a more powerful version of the browser's fetch() function.
 */
 
 // The base URL of our backend API
-const API_BASE_URL = 'http://localhost:5000/api';
+// In Docker, the frontend will proxy requests through nginx to the backend
+const API_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? '/api'  // In production (Docker), use relative path (nginx will proxy)
+  : 'http://localhost:5001/api';  // In development, use direct backend URL
 
 // Create an axios instance with default settings
 const api = axios.create({
