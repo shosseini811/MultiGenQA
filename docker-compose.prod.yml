@@ -1,0 +1,266 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  database:
+    image: postgres:15-alpine
+    container_name: multigenqa-database
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-multigenqa}
+      POSTGRES_USER: ${DB_USER:-multigenqa_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d
+    ports:
+      - "127.0.0.1:5432:5432"  # Bind to localhost only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-multigenqa_user} -d ${DB_NAME:-multigenqa}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - backend
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: multigenqa-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD} --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "127.0.0.1:6379:6379"  # Bind to localhost only
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - backend
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Backend service (Python Flask API)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+      target: production
+    container_name: multigenqa-backend
+    restart: unless-stopped
+    environment:
+      - FLASK_ENV=production
+      - DATABASE_URL=postgresql://${DB_USER:-multigenqa_user}:${DB_PASSWORD}@database:5432/${DB_NAME:-multigenqa}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - SECRET_KEY=${SECRET_KEY}
+      - CORS_ORIGINS=${CORS_ORIGINS:-https://your-domain.com}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - backend
+      - frontend
+    volumes:
+      - ./logs:/app/logs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+
+  # Frontend service (React/TypeScript with nginx)
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      target: production
+    container_name: multigenqa-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "127.0.0.1:8080:8080"  # Monitoring port
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - ./ssl:/etc/nginx/ssl:ro
+      - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./logs/nginx:/var/log/nginx
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - frontend
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.25'
+
+  # Prometheus monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: multigenqa-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - monitoring
+      - backend
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Grafana dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: multigenqa-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    ports:
+      - "127.0.0.1:3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Log aggregation (optional)
+  loki:
+    image: grafana/loki:latest
+    container_name: multigenqa-loki
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3100:3100"
+    volumes:
+      - ./monitoring/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - monitoring
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Backup service
+  backup:
+    image: postgres:15-alpine
+    container_name: multigenqa-backup
+    restart: "no"
+    environment:
+      - PGPASSWORD=${DB_PASSWORD}
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup.sh:/backup.sh:ro
+    networks:
+      - backend
+    depends_on:
+      - database
+    entrypoint: /backup.sh
+    profiles:
+      - backup
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  loki_data:
+    driver: local
+
+networks:
+  frontend:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+  backend:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+  monitoring:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/16 
