@@ -1,122 +1,156 @@
+# Flask web framework for building the REST API
 from flask import Flask, request, jsonify, session
+# Cross-Origin Resource Sharing support for frontend communication
 from flask_cors import CORS
+# Rate limiting to prevent API abuse
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+# Security headers middleware
 from flask_talisman import Talisman
+# Caching layer for improved performance
 from flask_caching import Cache
+# Operating system interface for environment variables
 import os
+# Load environment variables from .env files
 from dotenv import load_dotenv
-import openai
-import google.generativeai as genai
-import anthropic
+# AI service clients
+import openai  # OpenAI GPT models
+import google.generativeai as genai  # Google Gemini models
+import anthropic  # Anthropic Claude models
+# Type hints for better code documentation
 from typing import List, Dict, Any, Optional
+# Logging framework for application monitoring
 import logging
+# Exception handling utilities
 import traceback
+# JSON serialization
 import json
+# Time utilities for performance monitoring
 import time
+# Date and time handling
 from datetime import datetime, timedelta
+# Prometheus metrics for monitoring and observability
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+# UUID generation for unique identifiers
 import uuid
+# Regular expressions for password validation
 import re
+# Function decorators
 from functools import wraps
+# Email validation library
 from email_validator import validate_email, EmailNotValidError
 
-# Import our database models
+# Import our custom database models and initialization
 from models import db, init_db, User, Conversation, Message, APIUsage
 
-# Set up structured logging
+# Custom JSON formatter for structured logging
+# This ensures all log entries are in a consistent JSON format for better log analysis
 class JSONFormatter(logging.Formatter):
     def format(self, record):
+        # Create structured log entry with all relevant context
         log_entry = {
-            'timestamp': datetime.utcnow().isoformat(),
-            'level': record.levelname,
-            'message': record.getMessage(),
-            'module': record.module,
-            'function': record.funcName,
-            'line': record.lineno,
-            'request_id': getattr(record, 'request_id', None)
+            'timestamp': datetime.utcnow().isoformat(),  # ISO timestamp for consistency
+            'level': record.levelname,  # Log level (INFO, ERROR, etc.)
+            'message': record.getMessage(),  # The actual log message
+            'module': record.module,  # Python module that generated the log
+            'function': record.funcName,  # Function that generated the log
+            'line': record.lineno,  # Line number in the source code
+            'request_id': getattr(record, 'request_id', None)  # Request correlation ID
         }
+        # Add exception details if this is an error log
         if record.exc_info:
             log_entry['exception'] = self.formatException(record.exc_info)
         return json.dumps(log_entry)
 
-# Configure logging
-handler = logging.StreamHandler()
-handler.setFormatter(JSONFormatter())
-logger = logging.getLogger(__name__)
-logger.addHandler(handler)
-logger.setLevel(logging.INFO)
+# Configure application logging with JSON formatting
+# This setup ensures all logs are structured and machine-readable
+handler = logging.StreamHandler()  # Output to stdout/stderr
+handler.setFormatter(JSONFormatter())  # Use our custom JSON formatter
+logger = logging.getLogger(__name__)  # Get logger for this module
+logger.addHandler(handler)  # Attach the handler
+logger.setLevel(logging.INFO)  # Set minimum log level
 
-# Load environment variables from .env file
+# Load environment variables from .env file for configuration
+# This allows us to keep secrets and config out of source code
 load_dotenv()
 logger.info("Loading environment variables...")
 
-# Create Flask app
+# Create the main Flask application instance
 app = Flask(__name__)
 
-# Configuration
+# Flask application configuration
+# SECRET_KEY is used for JWT tokens and session security
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+# Database connection string - supports PostgreSQL, MySQL, SQLite
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///multigenqa.db')
+# Disable SQLAlchemy event system for better performance
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Cache configuration
+# Cache configuration - uses Redis in production, simple in-memory cache for development
 app.config['CACHE_TYPE'] = 'redis' if os.getenv('REDIS_URL') else 'simple'
 app.config['CACHE_REDIS_URL'] = os.getenv('REDIS_URL', 'redis://localhost:6379')
 
-# Initialize extensions
-cache = Cache(app)
+# Initialize Flask extensions
+cache = Cache(app)  # Caching layer for performance optimization
 
-# CORS configuration
-cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:3000').split(',')
-CORS(app, origins=cors_origins, supports_credentials=True)
+# CORS (Cross-Origin Resource Sharing) configuration
+# This allows our frontend to communicate with the backend from different origins
+cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3001').split(',')
+CORS(app, origins=cors_origins, supports_credentials=True)  # Enable cookie/auth headers
 
-# Security headers with Talisman
+# Security headers configuration using Talisman
+# Content Security Policy to prevent XSS and other attacks
 csp = {
-    'default-src': "'self'",
-    'script-src': "'self' 'unsafe-inline'",
-    'style-src': "'self' 'unsafe-inline'",
-    'img-src': "'self' data: https:",
-    'connect-src': "'self' https://api.openai.com https://generativelanguage.googleapis.com https://api.anthropic.com"
+    'default-src': "'self'",  # Only allow resources from same origin by default
+    'script-src': "'self' 'unsafe-inline'",  # Allow inline scripts (needed for some React features)
+    'style-src': "'self' 'unsafe-inline'",  # Allow inline styles
+    'img-src': "'self' data: https:",  # Allow images from same origin, data URLs, and HTTPS
+    'connect-src': "'self' https://api.openai.com https://generativelanguage.googleapis.com https://api.anthropic.com"  # AI API endpoints
 }
 
+# Apply security headers only in production to avoid development issues
 if os.getenv('FLASK_ENV') == 'production':
     Talisman(app, 
-             force_https=True,
-             strict_transport_security=True,
-             content_security_policy=csp)
+             force_https=True,  # Redirect HTTP to HTTPS
+             strict_transport_security=True,  # HSTS header
+             content_security_policy=csp)  # CSP header
 
-# Rate limiting
+# Rate limiting configuration to prevent API abuse
+# Uses client IP address as the key for rate limiting
 limiter = Limiter(
-    key_func=get_remote_address,
-    default_limits=["1000 per hour", "100 per minute"],
-    storage_uri=os.getenv('REDIS_URL', 'memory://')
+    key_func=get_remote_address,  # Rate limit by client IP
+    default_limits=["1000 per hour", "100 per minute"],  # Default limits for all endpoints
+    storage_uri=os.getenv('REDIS_URL', 'memory://')  # Use Redis for distributed rate limiting
 )
-limiter.init_app(app)
+limiter.init_app(app)  # Initialize with Flask app
 
-# Prometheus metrics
+# Prometheus metrics for monitoring and observability
+# These metrics help track application performance and usage patterns
 REQUEST_COUNT = Counter('http_requests_total', 'Total HTTP requests', ['method', 'endpoint', 'status'])
 REQUEST_DURATION = Histogram('http_request_duration_seconds', 'HTTP request duration')
 AI_REQUEST_COUNT = Counter('ai_requests_total', 'Total AI API requests', ['model', 'status'])
 AI_REQUEST_DURATION = Histogram('ai_request_duration_seconds', 'AI API request duration', ['model'])
 
-# Initialize database
+# Initialize database with Flask app
+# This creates all tables and indexes if they don't exist
 init_db(app)
 
-# Initialize AI clients with proper error handling
+# Initialize AI service clients with proper error handling
+# Each AI service is initialized separately to allow partial functionality if some APIs are unavailable
 try:
-    openai.api_key = os.getenv('OPENAI_API_KEY')
+    openai.api_key = os.getenv('OPENAI_API_KEY')  # Set global OpenAI API key
     logger.info("OpenAI API key loaded successfully")
 except Exception as e:
     logger.error(f"Failed to load OpenAI API key: {e}")
 
 try:
-    genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
+    genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))  # Configure Google Gemini client
     logger.info("Google API key configured successfully")
 except Exception as e:
     logger.error(f"Failed to configure Google API key: {e}")
 
 try:
-    anthropic_client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
+    anthropic_client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))  # Initialize Anthropic client
     logger.info("Anthropic client initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize Anthropic client: {e}")
@@ -193,7 +227,10 @@ def validate_password(password: str) -> List[str]:
 
 def validate_user_input(data: dict) -> Dict[str, List[str]]:
     """
-    Validate user registration input.
+    Validate user registration input comprehensively.
+    
+    This function performs server-side validation of all user input fields
+    to ensure data integrity and security before database storage.
     
     Returns a dictionary with field names as keys and error lists as values.
     """

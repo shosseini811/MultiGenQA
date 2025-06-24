@@ -1,24 +1,46 @@
 """
-Test suite for MultiGenQA API endpoints.
+Comprehensive test suite for MultiGenQA API endpoints.
 
-This file contains comprehensive tests for all API endpoints including:
-- Health checks
-- Model endpoints
-- Chat functionality
-- Conversation management
-- Error handling
+This file contains a complete testing framework for all API functionality:
+- Health checks and system status
+- AI model endpoint testing
+- Chat functionality with mocked AI responses
+- Conversation management and persistence
+- Error handling and edge cases
+- Rate limiting and security features
+- Usage statistics and monitoring
+
+The tests use pytest fixtures for consistent test environments and
+mock external AI services to ensure reliable, fast test execution.
 """
 
-import pytest
-import json
+# Testing framework imports
+import pytest  # Python testing framework
+import json    # JSON handling for API responses
+
+# Mocking utilities for isolating tests
 from unittest.mock import patch, MagicMock
+
+# Flask framework for web application testing
 from flask import Flask
-from backend.app import app, db
-from backend.models import User, Conversation, Message, APIUsage
+
+# Application components to test
+from backend.app import app, db  # Main Flask app and database
+from backend.models import User, Conversation, Message, APIUsage  # Database models
 
 @pytest.fixture
 def client():
-    """Create a test client for the Flask application."""
+    """
+    Create a test client for the Flask application.
+    
+    This fixture sets up an isolated test environment with:
+    - In-memory SQLite database for fast testing
+    - Disabled CSRF protection for easier testing
+    - Clean database state for each test
+    
+    Yields:
+        FlaskClient: Test client for making HTTP requests
+    """
     app.config['TESTING'] = True
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
     app.config['WTF_CSRF_ENABLED'] = False
@@ -31,7 +53,12 @@ def client():
 
 @pytest.fixture
 def sample_user():
-    """Create a sample user for testing."""
+    """
+    Create a sample user for testing user-dependent functionality.
+    
+    Returns:
+        User: A test user instance with basic configuration
+    """
     user = User(session_id='test-session-123')
     db.session.add(user)
     db.session.commit()
@@ -39,7 +66,15 @@ def sample_user():
 
 @pytest.fixture
 def sample_conversation(sample_user):
-    """Create a sample conversation for testing."""
+    """
+    Create a sample conversation for testing conversation functionality.
+    
+    Args:
+        sample_user: User fixture that owns this conversation
+        
+    Returns:
+        Conversation: A test conversation instance
+    """
     conversation = Conversation(
         user_id=sample_user.id,
         title='Test Conversation'
@@ -49,7 +84,12 @@ def sample_conversation(sample_user):
     return conversation
 
 class TestHealthEndpoint:
-    """Test cases for the health check endpoint."""
+    """
+    Test cases for the health check endpoint.
+    
+    These tests verify that the health monitoring system works correctly
+    and provides accurate information about system status.
+    """
     
     def test_health_check_success(self, client):
         """Test successful health check."""
@@ -73,7 +113,12 @@ class TestHealthEndpoint:
         assert 'cache' in services
 
 class TestModelsEndpoint:
-    """Test cases for the models endpoint."""
+    """
+    Test cases for the AI models endpoint.
+    
+    These tests verify that the models endpoint correctly returns
+    information about available AI models and their capabilities.
+    """
     
     def test_get_models_success(self, client):
         """Test successful retrieval of available models."""
@@ -102,7 +147,15 @@ class TestModelsEndpoint:
             assert 'status' in model
 
 class TestChatEndpoint:
-    """Test cases for the chat endpoint."""
+    """
+    Test cases for the chat endpoint.
+    
+    These tests cover the core chat functionality including:
+    - Input validation and error handling
+    - Integration with different AI models
+    - Response format and data integrity
+    - Error scenarios and edge cases
+    """
     
     def test_chat_missing_model(self, client):
         """Test chat endpoint with missing model parameter."""
@@ -234,7 +287,12 @@ class TestChatEndpoint:
         assert 'error' in data
 
 class TestConversationEndpoints:
-    """Test cases for conversation management endpoints."""
+    """
+    Test cases for conversation management endpoints.
+    
+    These tests verify conversation persistence, retrieval,
+    and user-specific access controls for chat history.
+    """
     
     def test_get_conversations_no_user(self, client):
         """Test getting conversations when user doesn't exist."""
@@ -286,7 +344,12 @@ class TestConversationEndpoints:
         assert 'Conversation not found' in data['error']
 
 class TestUsageEndpoint:
-    """Test cases for the usage statistics endpoint."""
+    """
+    Test cases for the usage statistics endpoint.
+    
+    These tests verify that API usage tracking and reporting
+    functionality works correctly for monitoring and billing.
+    """
     
     def test_get_usage_stats_no_user(self, client):
         """Test getting usage stats when user doesn't exist."""
@@ -327,7 +390,12 @@ class TestUsageEndpoint:
         assert data['period'] == '30_days'
 
 class TestRateLimiting:
-    """Test cases for rate limiting functionality."""
+    """
+    Test cases for rate limiting functionality.
+    
+    These tests verify that the API properly enforces rate limits
+    to prevent abuse and ensure fair usage.
+    """
     
     def test_chat_rate_limit(self, client):
         """Test that chat endpoint enforces rate limits."""
@@ -352,7 +420,12 @@ class TestRateLimiting:
             pass
 
 class TestErrorHandlers:
-    """Test cases for error handling."""
+    """
+    Test cases for global error handling.
+    
+    These tests verify that the application properly handles
+    various error conditions and returns appropriate responses.
+    """
     
     def test_404_handler(self, client):
         """Test 404 error handler."""
@@ -370,7 +443,12 @@ class TestErrorHandlers:
         pass
 
 class TestMetricsEndpoint:
-    """Test cases for the metrics endpoint."""
+    """
+    Test cases for the Prometheus metrics endpoint.
+    
+    These tests verify that monitoring and observability
+    features work correctly for production deployment.
+    """
     
     def test_metrics_endpoint(self, client):
         """Test that metrics endpoint returns Prometheus format."""

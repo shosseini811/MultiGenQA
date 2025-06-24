@@ -1,16 +1,38 @@
 #!/usr/bin/env python3
 """
 Simple test script to verify MultiGenQA backend functionality.
-This script tests the basic API endpoints without requiring external dependencies.
+
+This script provides a comprehensive test suite for the MultiGenQA backend API
+without requiring external dependencies or complex test frameworks. It tests:
+- Core API endpoints (health, models, metrics)
+- Database model functionality
+- Input validation
+- CORS configuration
+- Basic error handling
+
+Usage:
+    python test_backend.py
+
+The script will output detailed test results and return exit code 0 if all tests pass.
 """
 
-import json
-import sys
-from app import app, db
-from models import User, Conversation, Message
+# Standard library imports
+import json  # JSON serialization for API responses
+import sys   # System functions for exit codes
+
+# Application imports
+from app import app, db  # Flask app and database instance
+from models import User, Conversation, Message  # Database models
 
 def test_health_endpoint():
-    """Test the health check endpoint."""
+    """
+    Test the health check endpoint functionality.
+    
+    This test verifies that:
+    - The health endpoint responds with HTTP 200
+    - Response includes required status fields
+    - Service status information is included
+    """
     print("🔍 Testing health endpoint...")
     
     with app.test_client() as client:
@@ -26,7 +48,14 @@ def test_health_endpoint():
             return False
 
 def test_models_endpoint():
-    """Test the models endpoint."""
+    """
+    Test the AI models endpoint functionality.
+    
+    This test verifies that:
+    - The models endpoint responds with HTTP 200
+    - All expected AI models are listed
+    - Model information includes required fields
+    """
     print("🔍 Testing models endpoint...")
     
     with app.test_client() as client:
@@ -44,7 +73,15 @@ def test_models_endpoint():
             return False
 
 def test_database_models():
-    """Test database model creation and basic operations."""
+    """
+    Test database model creation and basic CRUD operations.
+    
+    This test verifies that:
+    - User, Conversation, and Message models can be created
+    - Database relationships work correctly
+    - Data can be retrieved and manipulated
+    - Cleanup operations work properly
+    """
     print("🔍 Testing database models...")
     
     try:
@@ -98,7 +135,15 @@ def test_database_models():
         return False
 
 def test_chat_endpoint_validation():
-    """Test chat endpoint input validation."""
+    """
+    Test chat endpoint input validation and error handling.
+    
+    This test verifies that:
+    - Missing required parameters are properly rejected
+    - Invalid model names are handled correctly
+    - Appropriate error codes and messages are returned
+    - Session management works for legacy users
+    """
     print("🔍 Testing chat endpoint validation...")
     
     with app.test_client() as client:
@@ -149,7 +194,14 @@ def test_chat_endpoint_validation():
             return False
 
 def test_metrics_endpoint():
-    """Test the metrics endpoint."""
+    """
+    Test the Prometheus metrics endpoint.
+    
+    This test verifies that:
+    - The metrics endpoint responds with HTTP 200
+    - Content type is appropriate for Prometheus format
+    - Metrics data is properly formatted
+    """
     print("🔍 Testing metrics endpoint...")
     
     with app.test_client() as client:
@@ -168,7 +220,14 @@ def test_metrics_endpoint():
             return False
 
 def test_cors_headers():
-    """Test CORS headers are present."""
+    """
+    Test Cross-Origin Resource Sharing (CORS) configuration.
+    
+    This test verifies that:
+    - CORS headers are present in responses
+    - Frontend applications can communicate with the API
+    - Configuration is working as expected
+    """
     print("🔍 Testing CORS headers...")
     
     with app.test_client() as client:
@@ -183,7 +242,18 @@ def test_cors_headers():
             return True
 
 def run_all_tests():
-    """Run all backend tests."""
+    """
+    Execute all backend tests and report results.
+    
+    This function orchestrates the complete test suite execution:
+    - Runs all individual test functions
+    - Tracks pass/fail statistics
+    - Provides comprehensive reporting
+    - Returns success/failure status
+    
+    Returns:
+        bool: True if all tests pass, False otherwise
+    """
     print("🚀 Starting MultiGenQA Backend Tests")
     print("=" * 50)
     

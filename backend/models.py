@@ -78,21 +78,24 @@ class User(db.Model):
         """
         return check_password_hash(self.password_hash, password)
     
-    def generate_auth_token(self, expires_in: int = 3600) -> str:
+    def generate_auth_token(self, expires_in: int = 86400) -> str:
         """
         Generate a JWT authentication token for the user.
         
         Args:
-            expires_in: Token expiration time in seconds (default: 1 hour)
+            expires_in: Token expiration time in seconds (default: 24 hours)
             
         Returns:
             str: JWT token
         """
+        import time
+        # Use consistent timestamp for both iat and exp
+        now = int(time.time())
         payload = {
             'user_id': self.id,
             'email': self.email,
-            'exp': datetime.utcnow().timestamp() + expires_in,
-            'iat': datetime.utcnow().timestamp()
+            'exp': now + expires_in,
+            'iat': now
         }
         return jwt.encode(payload, current_app.config['SECRET_KEY'], algorithm='HS256')
     
@@ -108,12 +111,29 @@ class User(db.Model):
             User: User object if token is valid, None otherwise
         """
         try:
-            payload = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
+            # Decode with leeway to handle small time differences
+            payload = jwt.decode(
+                token, 
+                current_app.config['SECRET_KEY'], 
+                algorithms=['HS256'],
+                leeway=10  # Allow 10 seconds leeway for time sync issues
+            )
             user_id = payload.get('user_id')
             if user_id:
-                return User.query.get(user_id)
-        except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-            pass
+                user = User.query.get(user_id)
+                if user and user.is_active:
+                    print(f"✅ Token verification successful for user: {user.email}")
+                    return user
+                else:
+                    print(f"❌ User not found or inactive for ID: {user_id}")
+            else:
+                print("❌ No user_id in token payload")
+        except jwt.ExpiredSignatureError:
+            print("❌ Token has expired")
+        except jwt.InvalidTokenError as e:
+            print(f"❌ Invalid token: {e}")
+        except Exception as e:
+            print(f"❌ Token verification error: {e}")
         return None
     
     def generate_verification_token(self) -> str:

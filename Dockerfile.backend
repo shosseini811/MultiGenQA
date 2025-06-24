@@ -1,69 +1,103 @@
-# Multi-stage build for Python backend
+# Multi-stage Docker build for Python Flask backend
+# This creates a secure, efficient production image by:
+# 1. Building Python dependencies in a full environment with build tools
+# 2. Running the application in a minimal environment with only runtime dependencies
 
-# Stage 1: Build stage
+# ===== STAGE 1: BUILD ENVIRONMENT =====
+# Build Python dependencies that require compilation (like psycopg2, cryptography)
 FROM python:3.11-slim as builder
 
-# Install build dependencies
+# Install build dependencies required for compiling Python packages
+# gcc/g++: C/C++ compilers for packages with native extensions
+# libpq-dev: PostgreSQL development headers for psycopg2
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/*    # Clean package cache to reduce image size
 
-# Set working directory
+# Set working directory inside the builder container
 WORKDIR /app
 
-# Copy requirements first for better caching
+# Copy requirements file first for better Docker layer caching
+# If requirements don't change, Docker can reuse the dependency installation layer
 COPY backend/requirements.txt .
 
-# Create virtual environment and install dependencies
+# Create isolated virtual environment for dependencies
+# Virtual environments prevent conflicts and ensure clean dependency management
 RUN python -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+ENV PATH="/opt/venv/bin:$PATH"    # Activate virtual environment
+
+# Upgrade core Python packaging tools for better dependency resolution
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# Install all Python dependencies from requirements.txt
+# --no-cache-dir: Don't cache downloaded packages (reduces image size)
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Stage 2: Production stage
+# ===== STAGE 2: PRODUCTION ENVIRONMENT =====
+# Create minimal runtime environment with only necessary components
 FROM python:3.11-slim as production
 
-# Create non-root user
+# Create non-root user for security best practices
+# Running as non-root reduces attack surface and follows security guidelines
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 
-# Install runtime dependencies
+# Install only runtime dependencies (no build tools needed)
+# libpq5: PostgreSQL client library (runtime component of libpq-dev)
+# curl: Required for health checks and debugging
 RUN apt-get update && apt-get install -y \
     libpq5 \
     curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    && rm -rf /var/lib/apt/lists/* \     # Clean package cache
+    && apt-get clean                      # Additional cleanup
 
-# Copy virtual environment from builder stage
+# Copy the complete virtual environment from the builder stage
+# This includes all compiled dependencies without needing build tools in production
 COPY --from=builder /opt/venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+ENV PATH="/opt/venv/bin:$PATH"    # Activate virtual environment
 
-# Set working directory
+# Set working directory for the application
 WORKDIR /app
 
-# Copy application code
+# Copy Flask application source code
+# This includes app.py, models.py, and all other backend files
 COPY backend/ .
 
-# Create necessary directories
+# Create necessary directories and set proper ownership
+# logs/: Directory for application log files
 RUN mkdir -p logs && \
-    chown -R appuser:appuser /app
+    chown -R appuser:appuser /app    # Grant ownership to non-root user
 
-# Switch to non-root user
+# Switch to non-root user for security
+# All subsequent operations run with limited privileges
 USER appuser
 
-# Expose port
+# Expose port for Flask application
+# Port 5001 is where Gunicorn will serve the Flask app
 EXPOSE 5001
 
-# Health check
+# Health check to monitor application status
+# Docker will mark container as unhealthy if this endpoint fails
+# --start-period=40s: Give app extra time to start up (database connections, etc.)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:5001/api/health || exit 1
 
-# Environment variables
-ENV FLASK_APP=app.py
-ENV FLASK_ENV=production
-ENV PYTHONPATH=/app
-ENV PYTHONUNBUFFERED=1
+# Set environment variables for production Flask application
+ENV FLASK_APP=app.py           # Main Flask application file
+ENV FLASK_ENV=production       # Enable production mode (disables debug, enables optimizations)
+ENV PYTHONPATH=/app            # Add app directory to Python path for imports
+ENV PYTHONUNBUFFERED=1         # Ensure Python output is sent directly to terminal (important for Docker logs)
 
-# Command to run the application with Gunicorn
+# Run Flask application with Gunicorn WSGI server for production
+# Gunicorn configuration for optimal performance and reliability:
+# --bind 0.0.0.0:5001: Listen on all interfaces, port 5001
+# --workers 4: Use 4 worker processes for handling requests
+# --worker-class gthread: Use threaded workers for better I/O performance
+# --threads 2: 2 threads per worker (total: 8 concurrent requests)
+# --worker-connections 1000: Max simultaneous clients per worker
+# --max-requests 1000: Restart workers after 1000 requests (prevents memory leaks)
+# --max-requests-jitter 50: Add randomness to worker restarts
+# --preload: Load application code before forking workers (better performance)
+# --access-logfile/-error-logfile -: Log to stdout/stderr for Docker
 CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "4", "--worker-class", "gthread", "--threads", "2", "--worker-connections", "1000", "--max-requests", "1000", "--max-requests-jitter", "50", "--preload", "--access-logfile", "-", "--error-logfile", "-", "app:app"] 

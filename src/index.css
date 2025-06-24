@@ -11,8 +11,9 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #f8fafc;
   min-height: 100vh;
+  color: #1e293b;
 }
 
 /* App Loading Styles */
@@ -21,12 +22,12 @@ body {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #f8fafc;
 }
 
 .loading-container {
   text-align: center;
-  color: white;
+  color: #1e293b;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -393,16 +394,17 @@ body {
 /* Main App Styles */
 .app {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #f8fafc;
   padding: 20px;
 }
 
 .app__container {
-  max-width: 800px;
+  max-width: 1200px;
   margin: 0 auto;
   background: white;
-  border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+  border-radius: 20px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e2e8f0;
   overflow: hidden;
   height: calc(100vh - 40px);
   display: flex;
@@ -410,10 +412,11 @@ body {
 }
 
 .app__header {
-  padding: 24px;
-  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  padding: 32px;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
   border-bottom: 1px solid #e2e8f0;
   position: relative;
+  color: white;
 }
 
 .app__title {
@@ -425,9 +428,10 @@ body {
 
 .app__title h1 {
   margin: 0;
-  font-size: 28px;
-  font-weight: 700;
-  color: #1e293b;
+  font-size: 32px;
+  font-weight: 800;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .app__user-info {
@@ -440,32 +444,35 @@ body {
 }
 
 .app__welcome {
-  color: #64748b;
+  color: rgba(255, 255, 255, 0.9);
   font-size: 14px;
   font-weight: 500;
 }
 
 .app__logout-btn {
-  padding: 8px 16px;
-  background: #ef4444;
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.15);
   color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
 }
 
 .app__logout-btn:hover {
-  background: #dc2626;
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.3);
   transform: translateY(-1px);
 }
 
 .app__subtitle {
   margin: 0;
-  color: #64748b;
-  font-size: 16px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 18px;
+  font-weight: 400;
 }
 
 .app__health-warning {
@@ -497,13 +504,26 @@ body {
 
 .app__welcome {
   text-align: center;
-  padding: 60px 20px;
+  padding: 80px 40px;
   color: #64748b;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 16px;
+  margin: 40px;
+  border: 1px solid #e2e8f0;
 }
 
 .app__welcome h3 {
-  margin: 16px 0 8px 0;
+  margin: 20px 0 12px 0;
   color: #1e293b;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.app__welcome p {
+  font-size: 18px;
+  line-height: 1.6;
+  max-width: 600px;
+  margin: 0 auto;
 }
 
 .app__loading {
@@ -520,104 +540,178 @@ body {
 }
 
 .app__input-area {
-  padding: 24px;
-  border-top: 1px solid #e2e8f0;
-  background: #f8fafc;
+  padding: 40px;
+  border-top: none;
+  background: white;
+  position: relative;
+}
+
+.app__input-area::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #e2e8f0 20%, #e2e8f0 80%, transparent);
 }
 
 .app__error {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  padding: 12px;
-  background: #fef2f2;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
   border: 1px solid #fecaca;
-  border-radius: 8px;
+  border-radius: 12px;
   color: #dc2626;
   font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.1);
 }
 
 .app__input-container {
+  position: relative;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 2px solid #e2e8f0;
+  border-radius: 24px;
+  padding: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+}
+
+.app__input-container:focus-within {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15), 0 12px 40px rgba(59, 130, 246, 0.12);
+  transform: translateY(-2px);
+}
+
+.app__input-wrapper {
   display: flex;
   align-items: flex-end;
   gap: 12px;
-  margin-bottom: 12px;
+  background: white;
+  border-radius: 20px;
+  padding: 4px;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .app__input {
   flex: 1;
-  padding: 16px;
-  border: 2px solid #e2e8f0;
-  border-radius: 12px;
+  padding: 20px 24px;
+  border: none;
+  border-radius: 16px;
   font-size: 16px;
   font-family: inherit;
-  resize: vertical;
-  min-height: 50px;
-  transition: border-color 0.2s ease;
+  resize: none;
+  min-height: 24px;
+  max-height: 200px;
+  transition: all 0.2s ease;
+  background: transparent;
+  line-height: 1.5;
+  color: #1e293b;
+}
+
+.app__input::placeholder {
+  color: #94a3b8;
+  font-weight: 400;
 }
 
 .app__input:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
 .app__input:disabled {
-  background: #f1f5f9;
+  background: transparent;
   color: #94a3b8;
   cursor: not-allowed;
 }
 
 .app__send-button {
   padding: 16px;
-  background: #667eea;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
   color: white;
   border: none;
-  border-radius: 12px;
+  border-radius: 16px;
   cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
 }
 
 .app__send-button:hover:not(:disabled) {
-  background: #5a6fd8;
-  transform: translateY(-1px);
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  transform: translateY(-1px) scale(1.05);
+  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.4);
 }
 
 .app__send-button:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
   transform: none;
+  background: #94a3b8;
+  box-shadow: none;
 }
 
 .app__clear-button {
-  padding: 8px 16px;
-  background: #f1f5f9;
+  margin-top: 16px;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
   color: #64748b;
-  border: none;
-  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .app__clear-button:hover:not(:disabled) {
-  background: #e2e8f0;
+  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  color: #475569;
 }
 
 .app__clear-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  transform: none;
 }
 
 /* Animations */
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
+}
+
+/* Character counter for long messages */
+.app__char-counter {
+  position: absolute;
+  bottom: 8px;
+  right: 60px;
+  font-size: 12px;
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 2px 6px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.app__input-container:focus-within .app__char-counter {
+  opacity: 1;
 }
 
 /* Responsive Design */
@@ -631,7 +725,7 @@ body {
   }
   
   .app__header {
-    padding: 16px;
+    padding: 20px;
   }
   
   .app__user-info {
@@ -641,11 +735,19 @@ body {
   }
   
   .app__messages {
-    padding: 16px;
+    padding: 20px;
   }
   
   .app__input-area {
-    padding: 16px;
+    padding: 24px;
+  }
+  
+  .app__input-container {
+    border-radius: 20px;
+  }
+  
+  .app__input-wrapper {
+    border-radius: 16px;
   }
   
   .login-card,
@@ -672,12 +774,26 @@ body {
     height: calc(100vh - 10px);
   }
   
+  .app__input-area {
+    padding: 16px;
+  }
+  
   .app__input-container {
-    flex-direction: column;
-    align-items: stretch;
+    border-radius: 16px;
+    padding: 6px;
+  }
+  
+  .app__input-wrapper {
+    border-radius: 12px;
+    gap: 8px;
+  }
+  
+  .app__input {
+    padding: 16px 18px;
   }
   
   .app__send-button {
-    width: 100%;
+    width: 40px;
+    height: 40px;
   }
 } 

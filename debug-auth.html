@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MultiGenQA Auth Debug</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .debug-section {
+            background: #f5f5f5;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #007bff;
+        }
+        .error { border-left-color: #dc3545; }
+        .success { border-left-color: #28a745; }
+        .warning { border-left-color: #ffc107; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        pre {
+            background: #1e1e1e;
+            color: #fff;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 MultiGenQA Authentication Debug Tool</h1>
+    <p>This tool helps you understand what's happening with your authentication tokens.</p>
+
+    <div class="debug-section">
+        <h3>🎫 Current Token Status</h3>
+        <button onclick="checkToken()">Check Token</button>
+        <button onclick="clearToken()">Clear Token</button>
+        <div id="tokenStatus"></div>
+    </div>
+
+    <div class="debug-section">
+        <h3>🔐 Test Login</h3>
+        <input type="email" id="email" placeholder="Email" value="test@example.com">
+        <input type="password" id="password" placeholder="Password" value="password123">
+        <button onclick="testLogin()">Test Login</button>
+        <div id="loginStatus"></div>
+    </div>
+
+    <div class="debug-section">
+        <h3>💬 Test Chat</h3>
+        <button onclick="testChat()">Send Test Message</button>
+        <div id="chatStatus"></div>
+    </div>
+
+    <div class="debug-section">
+        <h3>📊 Console Logs</h3>
+        <button onclick="clearLogs()">Clear Logs</button>
+        <pre id="logs"></pre>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5001/api';
+        const TOKEN_KEY = 'multigenqa_token';
+        let logs = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}`;
+            logs.push(logEntry);
+            console.log(message);
+            updateLogsDisplay();
+        }
+
+        function updateLogsDisplay() {
+            document.getElementById('logs').textContent = logs.slice(-20).join('\n');
+        }
+
+        function clearLogs() {
+            logs = [];
+            updateLogsDisplay();
+        }
+
+        // Token Management Functions
+        function getToken() {
+            return localStorage.getItem(TOKEN_KEY);
+        }
+
+        function setToken(token) {
+            localStorage.setItem(TOKEN_KEY, token);
+        }
+
+        function removeToken() {
+            localStorage.removeItem(TOKEN_KEY);
+        }
+
+        function decodeToken(token) {
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                return payload;
+            } catch (error) {
+                return null;
+            }
+        }
+
+        function checkToken() {
+            const token = getToken();
+            const statusDiv = document.getElementById('tokenStatus');
+            
+            if (!token) {
+                statusDiv.innerHTML = '<div class="error">❌ No token found</div>';
+                log('No token found in localStorage');
+                return;
+            }
+
+            const payload = decodeToken(token);
+            if (!payload) {
+                statusDiv.innerHTML = '<div class="error">❌ Invalid token format</div>';
+                log('Token found but invalid format');
+                return;
+            }
+
+            const expirationTime = payload.exp * 1000;
+            const currentTime = Date.now();
+            const timeUntilExpiry = expirationTime - currentTime;
+            const isExpired = timeUntilExpiry <= 0;
+
+            let statusHtml = `
+                <div class="${isExpired ? 'error' : 'success'}">
+                    <strong>Token Status:</strong> ${isExpired ? 'EXPIRED' : 'VALID'}<br>
+                    <strong>User ID:</strong> ${payload.user_id}<br>
+                    <strong>Email:</strong> ${payload.email}<br>
+                    <strong>Expires:</strong> ${new Date(expirationTime).toLocaleString()}<br>
+                    <strong>Time until expiry:</strong> ${isExpired ? 
+                        `Expired ${Math.round(Math.abs(timeUntilExpiry) / 1000 / 60)} minutes ago` :
+                        `${Math.round(timeUntilExpiry / 1000 / 60)} minutes`
+                    }
+                </div>
+            `;
+
+            statusDiv.innerHTML = statusHtml;
+            log(`Token check: ${isExpired ? 'EXPIRED' : 'VALID'}, expires in ${Math.round(timeUntilExpiry / 1000 / 60)} minutes`);
+        }
+
+        function clearToken() {
+            removeToken();
+            document.getElementById('tokenStatus').innerHTML = '<div class="warning">🗑️ Token cleared</div>';
+            log('Token cleared from localStorage');
+        }
+
+        async function testLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const statusDiv = document.getElementById('loginStatus');
+
+            if (!email || !password) {
+                statusDiv.innerHTML = '<div class="error">❌ Please enter email and password</div>';
+                return;
+            }
+
+            try {
+                log(`Attempting login for: ${email}`);
+                statusDiv.innerHTML = '<div class="warning">🔄 Logging in...</div>';
+
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+                log(`Login response status: ${response.status}`);
+
+                if (response.ok && data.token) {
+                    setToken(data.token);
+                    statusDiv.innerHTML = '<div class="success">✅ Login successful!</div>';
+                    log('Login successful, token saved');
+                    checkToken(); // Update token status
+                } else {
+                    statusDiv.innerHTML = `<div class="error">❌ Login failed: ${data.error || data.message}</div>`;
+                    log(`Login failed: ${data.error || data.message}`);
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="error">❌ Login error: ${error.message}</div>`;
+                log(`Login error: ${error.message}`);
+            }
+        }
+
+        async function testChat() {
+            const token = getToken();
+            const statusDiv = document.getElementById('chatStatus');
+
+            if (!token) {
+                statusDiv.innerHTML = '<div class="error">❌ No token found. Please login first.</div>';
+                return;
+            }
+
+            try {
+                log('Testing chat endpoint...');
+                statusDiv.innerHTML = '<div class="warning">🔄 Sending test message...</div>';
+
+                const response = await fetch(`${API_BASE}/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        model: 'openai',
+                        messages: [
+                            { role: 'user', content: 'Hello, this is a test message!' }
+                        ]
+                    })
+                });
+
+                const data = await response.json();
+                log(`Chat response status: ${response.status}`);
+
+                if (response.ok) {
+                    statusDiv.innerHTML = `<div class="success">✅ Chat successful!<br><strong>Response:</strong> ${data.response}</div>`;
+                    log('Chat request successful');
+                } else {
+                    statusDiv.innerHTML = `<div class="error">❌ Chat failed: ${data.error || 'Unknown error'}</div>`;
+                    log(`Chat failed: ${data.error || 'Unknown error'}`);
+                    
+                    if (response.status === 401) {
+                        log('401 Unauthorized - token may be expired or invalid');
+                        checkToken(); // Re-check token status
+                    }
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<div class="error">❌ Chat error: ${error.message}</div>`;
+                log(`Chat error: ${error.message}`);
+            }
+        }
+
+        // Initialize
+        log('Auth debug tool loaded');
+        checkToken();
+    </script>
+</body>
+</html> 

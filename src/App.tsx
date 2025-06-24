@@ -36,8 +36,9 @@ const ChatInterface: React.FC = () => {
   const [error, setError] = useState<string>('');
   const [isHealthy, setIsHealthy] = useState<boolean>(false);
   
-  // Ref to scroll to bottom of chat
+  // Refs for DOM elements
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   /*
   useEffect Hook
@@ -81,6 +82,14 @@ const ChatInterface: React.FC = () => {
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const autoResizeTextarea = () => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+    }
   };
 
   const handleSendMessage = async () => {
@@ -220,30 +229,36 @@ const ChatInterface: React.FC = () => {
             )}
             
             <div className="app__input-container">
-              <textarea
-                className="app__input"
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder={
-                  selectedModel 
-                    ? `Message ${selectedModel.name}...`
-                    : 'Select a model to start chatting...'
-                }
-                disabled={!selectedModel || isLoading}
-                rows={1}
-              />
-              <button
-                className="app__send-button"
-                onClick={handleSendMessage}
-                disabled={!inputMessage.trim() || !selectedModel || isLoading}
-              >
-                {isLoading ? (
-                  <Loader size={20} />
-                ) : (
-                  <Send size={20} />
-                )}
-              </button>
+              <div className="app__input-wrapper">
+                <textarea
+                  ref={textareaRef}
+                  className="app__input"
+                  value={inputMessage}
+                  onChange={(e) => {
+                    setInputMessage(e.target.value);
+                    autoResizeTextarea();
+                  }}
+                  onKeyPress={handleKeyPress}
+                  placeholder={
+                    selectedModel 
+                      ? `Message ${selectedModel.name}...`
+                      : 'Select a model to start chatting...'
+                  }
+                  disabled={!selectedModel || isLoading}
+                  rows={1}
+                />
+                <button
+                  className="app__send-button"
+                  onClick={handleSendMessage}
+                  disabled={!inputMessage.trim() || !selectedModel || isLoading}
+                >
+                  {isLoading ? (
+                    <Loader size={16} />
+                  ) : (
+                    <Send size={16} />
+                  )}
+                </button>
+              </div>
             </div>
             
             {messages.length > 0 && (

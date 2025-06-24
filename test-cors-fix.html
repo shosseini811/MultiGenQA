@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test CORS Fix</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+        .success { border-left-color: #28a745; background: #d4edda; }
+        .error { border-left-color: #dc3545; background: #f8d7da; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px 0;
+        }
+        button:hover { background: #0056b3; }
+        .result {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test CORS Fix</h1>
+    <p>Testing if the frontend can now communicate with the backend.</p>
+
+    <div class="test-section">
+        <h3>🔗 Test Backend Connection</h3>
+        <button onclick="testHealthCheck()">Test Health Check</button>
+        <div id="healthResult" class="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🔐 Test Login Endpoint</h3>
+        <button onclick="testLogin()">Test Login (Should Fail with 401)</button>
+        <div id="loginResult" class="result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5001/api';
+
+        async function testHealthCheck() {
+            const resultDiv = document.getElementById('healthResult');
+            
+            try {
+                resultDiv.innerHTML = '🔄 Testing health check...';
+                
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `✅ SUCCESS! Backend is reachable.
+                    
+Status: ${data.status}
+Request ID: ${data.request_id}
+
+🎉 CORS is working! No more cross-origin errors.`;
+                    resultDiv.className = 'result success';
+                } else {
+                    resultDiv.innerHTML = `❌ Health check failed: ${response.status}`;
+                    resultDiv.className = 'result error';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `❌ Connection failed: ${error.message}
+
+This might be a CORS error or the backend isn't running.`;
+                resultDiv.className = 'result error';
+            }
+        }
+
+        async function testLogin() {
+            const resultDiv = document.getElementById('loginResult');
+            
+            try {
+                resultDiv.innerHTML = '🔄 Testing login endpoint...';
+                
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'test@example.com',
+                        password: 'wrongpassword'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.status === 401) {
+                    resultDiv.innerHTML = `✅ SUCCESS! Login endpoint is working.
+                    
+Response: ${data.error}
+Status: 401 (Expected for wrong credentials)
+
+🎉 CORS is working! The request went through.`;
+                    resultDiv.className = 'result success';
+                } else {
+                    resultDiv.innerHTML = `⚠️ Unexpected response: ${response.status}
+${JSON.stringify(data, null, 2)}`;
+                    resultDiv.className = 'result error';
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `❌ Login test failed: ${error.message}
+
+This indicates a CORS or connection issue.`;
+                resultDiv.className = 'result error';
+            }
+        }
+
+        // Auto-run health check on page load
+        window.onload = function() {
+            testHealthCheck();
+        };
+    </script>
+</body>
+</html> 

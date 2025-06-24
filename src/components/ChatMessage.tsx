@@ -54,34 +54,39 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, model }) => {
       <style>{`
         .chat-message {
           display: flex;
-          gap: 12px;
-          margin-bottom: 16px;
-          padding: 16px;
-          border-radius: 12px;
-          max-width: 80%;
+          gap: 16px;
+          margin-bottom: 24px;
+          padding: 20px;
+          border-radius: 16px;
+          max-width: 85%;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+          border: 1px solid rgba(0, 0, 0, 0.05);
         }
         
         .chat-message--user {
-          background-color: #f0f4ff;
+          background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
           margin-left: auto;
           flex-direction: row-reverse;
+          border-left: 4px solid #3b82f6;
         }
         
         .chat-message--assistant {
-          background-color: #f0fdf4;
+          background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
           margin-right: auto;
+          border-left: 4px solid #10b981;
         }
         
         .chat-message__avatar {
           flex-shrink: 0;
-          width: 40px;
-          height: 40px;
+          width: 44px;
+          height: 44px;
           border-radius: 50%;
-          background-color: white;
+          background: white;
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+          border: 2px solid #f8fafc;
         }
         
         .chat-message__content {
@@ -90,23 +95,24 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, model }) => {
         }
         
         .chat-message__header {
-          margin-bottom: 4px;
+          margin-bottom: 8px;
         }
         
         .chat-message__sender {
-          font-size: 12px;
-          font-weight: 600;
-          color: #666;
+          font-size: 13px;
+          font-weight: 700;
+          color: #64748b;
           text-transform: uppercase;
-          letter-spacing: 0.5px;
+          letter-spacing: 0.8px;
         }
         
         .chat-message__text {
           font-size: 16px;
-          line-height: 1.5;
-          color: #333;
+          line-height: 1.6;
+          color: #1e293b;
           word-wrap: break-word;
           white-space: pre-wrap;
+          font-weight: 400;
         }
       `}</style>
     </div>

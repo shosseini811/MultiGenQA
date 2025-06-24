@@ -67,39 +67,52 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
       
       <style>{`
         .model-selector {
-          margin-bottom: 20px;
+          margin-bottom: 24px;
         }
         
         .model-selector__label {
           display: block;
-          margin-bottom: 8px;
+          margin-bottom: 12px;
           font-weight: 600;
-          color: #333;
-          font-size: 14px;
+          color: rgba(255, 255, 255, 0.9);
+          font-size: 16px;
         }
         
         .model-selector__select {
           width: 100%;
-          padding: 12px;
-          border: 2px solid #e1e5e9;
-          border-radius: 8px;
+          padding: 16px 20px;
+          border: 2px solid rgba(255, 255, 255, 0.2);
+          border-radius: 12px;
           font-size: 16px;
-          background-color: white;
+          background: rgba(255, 255, 255, 0.1);
+          color: white;
           cursor: pointer;
-          transition: border-color 0.2s ease;
+          transition: all 0.2s ease;
+          backdrop-filter: blur(10px);
+        }
+        
+        .model-selector__select option {
+          background: #1d4ed8;
+          color: white;
+          padding: 8px;
         }
         
         .model-selector__select:focus {
           outline: none;
-          border-color: #667eea;
-          box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+          border-color: rgba(255, 255, 255, 0.4);
+          box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.1);
+          background: rgba(255, 255, 255, 0.15);
         }
         
         .model-selector__description {
-          margin-top: 8px;
+          margin-top: 12px;
           font-size: 14px;
-          color: #666;
+          color: rgba(255, 255, 255, 0.8);
           font-style: italic;
+          background: rgba(255, 255, 255, 0.1);
+          padding: 12px;
+          border-radius: 8px;
+          backdrop-filter: blur(10px);
         }
       `}</style>
     </div>

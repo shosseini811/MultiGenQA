@@ -118,9 +118,39 @@ export interface ValidationErrors {
 /**
  * Password Strength Interface
  * Defines the structure for password strength checking
+ * 
+ * @example
+ * // Weak password example
+ * const weakPassword: PasswordStrength = {
+ *   score: 2,
+ *   feedback: [
+ *     "Password must be at least 8 characters long",
+ *     "Password must contain at least one uppercase letter",
+ *     "Password must contain at least one number"
+ *   ],
+ *   isValid: false
+ * };
+ * 
+ * @example
+ * // Strong password example
+ * const strongPassword: PasswordStrength = {
+ *   score: 5,
+ *   feedback: [], // Empty array when password meets all requirements
+ *   isValid: true
+ * };
+ * 
+ * @example
+ * // Medium strength password example
+ * const mediumPassword: PasswordStrength = {
+ *   score: 3,
+ *   feedback: [
+ *     "Add special characters for better security"
+ *   ],
+ *   isValid: true // Meets minimum requirements but could be stronger
+ * };
  */
 export interface PasswordStrength {
-  score: number;        // Strength score from 0-5
-  feedback: string[];   // Array of feedback messages for missing requirements
-  isValid: boolean;     // Whether password meets all requirements
+  score: number;        // Strength score from 0-5 (0=very weak, 5=very strong)
+  feedback: string[];   // Array of feedback messages for missing requirements (empty array = no issues)
+  isValid: boolean;     // Whether password meets all requirements (true/false)
 } 

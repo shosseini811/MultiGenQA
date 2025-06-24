@@ -36,11 +36,61 @@ We create an instance with default settings that all our API calls will use.
 */
 const api: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000, // 30 second timeout
+  
+  /*
+  Timeout Configuration:
+  - timeout: 30000 means 30,000 milliseconds = 30 seconds
+  - This is the maximum time we'll wait for ANY API request to complete
+  - If the server doesn't respond within 30 seconds, the request will automatically fail
+  - Why 30 seconds? AI models can take time to generate responses, but we don't want
+    users waiting forever if something goes wrong
+  - Without timeout: app could freeze indefinitely if server crashes or network fails
+  - With timeout: app shows error message after 30 seconds, user knows what happened
+  */
+  timeout: 30000, // 30 second timeout - prevents requests from hanging forever
+  
+  /*
+  HTTP Headers Configuration:
+  
+  What are headers?
+  - Headers are like "labels" or "instructions" attached to every HTTP request
+  - Think of them like writing on an envelope when sending mail:
+    * The address tells where to send it
+    * Special instructions tell how to handle it
+  - Headers tell the server important information about the request
+  
+  'Content-Type': 'application/json'
+  - This tells the server: "The data I'm sending is in JSON format"
+  - JSON is a way to structure data, like: {"name": "John", "age": 25}
+  - Without this header, the server might not know how to read our data
+  - It's like telling someone "I'm speaking English" before you start talking
+  
+  Why is this important?
+  - When we send login data: {"email": "user@example.com", "password": "123"}
+  - When we send chat messages: {"model": "gpt-4", "message": "Hello"}
+  - The server needs to know this data is JSON so it can parse it correctly
+  - Without proper Content-Type, server might reject our requests
+  */
   headers: {
-    'Content-Type': 'application/json',
+    'Content-Type': 'application/json', // Tell server we're sending JSON data
   },
-  withCredentials: true, // Important: This allows cookies/sessions to work
+  
+  /*
+  withCredentials: true
+  
+  What does this do?
+  - This allows cookies and authentication info to be sent with requests
+  - Think of it like showing your ID card when entering a building
+  - When you login, the server might give you a "session cookie"
+  - This setting ensures that cookie gets sent with future requests
+  - Without it, you'd have to login again for every single action
+  
+  Example:
+  - You login → Server gives you a session cookie
+  - You send a chat message → Cookie proves you're still logged in
+  - Server processes your request because it recognizes you
+  */
+  withCredentials: true, // Allow cookies/sessions - keeps you logged in
 });
 
 /*
@@ -53,7 +103,36 @@ const TOKEN_KEY = 'multigenqa_token';
 
 export const tokenManager = {
   getToken: (): string | null => {
-    return localStorage.getItem(TOKEN_KEY);
+    console.log('🔍 tokenManager.getToken() called - checking for stored token...');
+    console.log('📍 Looking for token with key:', TOKEN_KEY);
+    
+    const token = localStorage.getItem(TOKEN_KEY);
+    
+    if (token) {
+      console.log('✅ Token found in localStorage:', token.substring(0, 20) + '...');
+      console.log('🎫 User is logged in - token exists');
+      
+      // Try to decode the token to check expiration (for debugging)
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const expirationTime = payload.exp * 1000; // Convert to milliseconds
+        const currentTime = Date.now();
+        const timeUntilExpiry = expirationTime - currentTime;
+        
+        if (timeUntilExpiry > 0) {
+          console.log('⏰ Token expires in:', Math.round(timeUntilExpiry / 1000 / 60), 'minutes');
+        } else {
+          console.log('⚠️ Token appears to be expired by:', Math.round(Math.abs(timeUntilExpiry) / 1000 / 60), 'minutes');
+        }
+      } catch (decodeError) {
+        console.log('⚠️ Could not decode token for expiration check:', decodeError);
+      }
+    } else {
+      console.log('❌ No token found in localStorage');
+      console.log('🚫 User is not logged in - no token exists');
+    }
+    
+    return token;
   },
   
   setToken: (token: string): void => {
@@ -61,7 +140,23 @@ export const tokenManager = {
   },
   
   removeToken: (): void => {
+    console.log('🗑️ Removing token from localStorage');
     localStorage.removeItem(TOKEN_KEY);
+  },
+  
+  isTokenExpired: (): boolean => {
+    const token = tokenManager.getToken();
+    if (!token) return true;
+    
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const expirationTime = payload.exp * 1000; // Convert to milliseconds
+      const currentTime = Date.now();
+      return currentTime >= expirationTime;
+    } catch (error) {
+      console.log('⚠️ Error checking token expiration:', error);
+      return true; // Assume expired if we can't decode
+    }
   }
 };
 
@@ -95,10 +190,19 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token is invalid or expired
+      console.log('🚪 Authentication failed - logging out user');
+      console.log('❌ Error details:', error.response?.data?.error || 'Token invalid or expired');
+      
+      // Token is invalid or expired - clear it and redirect
       tokenManager.removeToken();
-      // You might want to redirect to login page here
-      window.location.href = '/login';
+      
+      // Show user-friendly message
+      console.log('🔄 Redirecting to login page due to authentication failure');
+      
+      // Only redirect if we're not already on the login page
+      if (!window.location.pathname.includes('/login')) {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
@@ -216,11 +320,20 @@ export class ApiService {
   /**
    * Check if user is authenticated
    * 
-   * @returns boolean - True if user has a valid token
+   * @returns boolean - True if user has a valid, non-expired token
    */
   static isAuthenticated(): boolean {
     const token = tokenManager.getToken();
-    return !!token;
+    if (!token) return false;
+    
+    // Check if token is expired
+    if (tokenManager.isTokenExpired()) {
+      console.log('🚫 Token is expired, removing it');
+      tokenManager.removeToken();
+      return false;
+    }
+    
+    return true;
   }
 
   // ========== AI Model Methods ==========
