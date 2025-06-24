@@ -113,4 +113,14 @@ export interface ValidationErrors {
   password?: string[];
   first_name?: string[];
   last_name?: string[];
+}
+
+/**
+ * Password Strength Interface
+ * Defines the structure for password strength checking
+ */
+export interface PasswordStrength {
+  score: number;        // Strength score from 0-5
+  feedback: string[];   // Array of feedback messages for missing requirements
+  isValid: boolean;     // Whether password meets all requirements
 } 

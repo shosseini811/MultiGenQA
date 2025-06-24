@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Mail, Lock, User, Eye, EyeOff, UserPlus, AlertCircle, CheckCircle, Loader, Check, X } from 'lucide-react';
-import { RegisterRequest, AuthResponse, ValidationErrors } from '../types';
+import { Mail, Lock, User, Eye, EyeOff, UserPlus, AlertCircle, CheckCircle, Check, X } from 'lucide-react';
+import { RegisterRequest, AuthResponse, ValidationErrors, PasswordStrength } from '../types';
 import { ApiService } from '../services/api';
 
 /*
@@ -202,30 +202,6 @@ const Register: React.FC<RegisterProps> = ({ onRegisterSuccess, onSwitchToLogin 
   };
   
   /*
-  Get Password Strength
-  
-  This function calculates password strength for visual feedback.
-  */
-  const getPasswordStrength = (): { strength: number; label: string; color: string } => {
-    const password = formData.password;
-    if (!password) return { strength: 0, label: '', color: '#e5e7eb' };
-    
-    let score = 0;
-    if (password.length >= 8) score++;
-    if (/[A-Z]/.test(password)) score++;
-    if (/[a-z]/.test(password)) score++;
-    if (/\d/.test(password)) score++;
-    if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) score++;
-    
-    if (score <= 2) return { strength: score * 20, label: 'Weak', color: '#ef4444' };
-    if (score <= 3) return { strength: score * 20, label: 'Fair', color: '#f59e0b' };
-    if (score <= 4) return { strength: score * 20, label: 'Good', color: '#10b981' };
-    return { strength: 100, label: 'Strong', color: '#059669' };
-  };
-  
-  const passwordStrength = getPasswordStrength();
-  
-  /*
   Password Strength Checker
   
   This function analyzes password strength in real-time.
@@ -323,7 +299,7 @@ const Register: React.FC<RegisterProps> = ({ onRegisterSuccess, onSwitchToLogin 
           <div className="strength-feedback">
             <p>Password must include:</p>
             <ul>
-              {passwordStrength.feedback.map((item, index) => (
+              {passwordStrength.feedback.map((item: string, index: number) => (
                 <li key={index}>
                   <X size={12} className="feedback-icon error" />
                   {item}
@@ -375,7 +351,7 @@ const Register: React.FC<RegisterProps> = ({ onRegisterSuccess, onSwitchToLogin 
               </div>
               {errors.first_name && (
                 <div className="field-error">
-                  {errors.first_name.map((error, index) => (
+                  {errors.first_name.map((error: string, index: number) => (
                     <span key={index}>{error}</span>
                   ))}
                 </div>
@@ -401,7 +377,7 @@ const Register: React.FC<RegisterProps> = ({ onRegisterSuccess, onSwitchToLogin 
               </div>
               {errors.last_name && (
                 <div className="field-error">
-                  {errors.last_name.map((error, index) => (
+                  {errors.last_name.map((error: string, index: number) => (
                     <span key={index}>{error}</span>
                   ))}
                 </div>
@@ -429,7 +405,7 @@ const Register: React.FC<RegisterProps> = ({ onRegisterSuccess, onSwitchToLogin 
             </div>
             {errors.email && (
               <div className="field-error">
-                {errors.email.map((error, index) => (
+                {errors.email.map((error: string, index: number) => (
                   <span key={index}>{error}</span>
                 ))}
               </div>
@@ -468,7 +444,7 @@ const Register: React.FC<RegisterProps> = ({ onRegisterSuccess, onSwitchToLogin 
             
             {errors.password && (
               <div className="field-error">
-                {errors.password.map((error, index) => (
+                {errors.password.map((error: string, index: number) => (
                   <span key={index}>{error}</span>
                 ))}
               </div>
