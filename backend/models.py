@@ -10,35 +10,188 @@ from sqlalchemy import text
 from datetime import datetime
 from typing import List, Optional
 import uuid
+from werkzeug.security import generate_password_hash, check_password_hash
+import jwt
+from flask import current_app
 
 db = SQLAlchemy()
 
 class User(db.Model):
     """
-    User model for storing user information.
+    Enhanced User model for storing user information with authentication.
     
-    In a production app, you'd integrate this with an authentication system.
-    For now, we'll use simple session-based identification.
+    This model now supports proper user accounts with email/password authentication.
     """
     __tablename__ = 'users'
     
     id = db.Column(db.String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    session_id = db.Column(db.String(128), unique=True, nullable=False)
+    
+    # Authentication fields
+    email = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    
+    # Profile fields
+    first_name = db.Column(db.String(100), nullable=False)
+    last_name = db.Column(db.String(100), nullable=False)
+    
+    # Account status
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    is_verified = db.Column(db.Boolean, default=False, nullable=False)
+    email_verification_token = db.Column(db.String(255), nullable=True)
+    
+    # Legacy field for backward compatibility (will be removed in future versions)
+    session_id = db.Column(db.String(128), unique=True, nullable=True)
+    
+    # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     last_active = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    last_login = db.Column(db.DateTime, nullable=True)
+    
+    # Password reset
+    password_reset_token = db.Column(db.String(255), nullable=True)
+    password_reset_expires = db.Column(db.DateTime, nullable=True)
     
     # Relationships
     conversations = db.relationship('Conversation', backref='user', lazy=True, cascade='all, delete-orphan')
     
     def __repr__(self):
-        return f'<User {self.id[:8]}...>'
+        return f'<User {self.email}>'
     
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'created_at': self.created_at.isoformat(),
-            'last_active': self.last_active.isoformat()
+    def set_password(self, password: str) -> None:
+        """
+        Hash and set the user's password.
+        
+        Args:
+            password: Plain text password to hash and store
+        """
+        self.password_hash = generate_password_hash(password)
+    
+    def check_password(self, password: str) -> bool:
+        """
+        Check if the provided password matches the stored hash.
+        
+        Args:
+            password: Plain text password to verify
+            
+        Returns:
+            bool: True if password matches, False otherwise
+        """
+        return check_password_hash(self.password_hash, password)
+    
+    def generate_auth_token(self, expires_in: int = 3600) -> str:
+        """
+        Generate a JWT authentication token for the user.
+        
+        Args:
+            expires_in: Token expiration time in seconds (default: 1 hour)
+            
+        Returns:
+            str: JWT token
+        """
+        payload = {
+            'user_id': self.id,
+            'email': self.email,
+            'exp': datetime.utcnow().timestamp() + expires_in,
+            'iat': datetime.utcnow().timestamp()
         }
+        return jwt.encode(payload, current_app.config['SECRET_KEY'], algorithm='HS256')
+    
+    @staticmethod
+    def verify_auth_token(token: str) -> Optional['User']:
+        """
+        Verify a JWT authentication token and return the user.
+        
+        Args:
+            token: JWT token to verify
+            
+        Returns:
+            User: User object if token is valid, None otherwise
+        """
+        try:
+            payload = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
+            user_id = payload.get('user_id')
+            if user_id:
+                return User.query.get(user_id)
+        except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+            pass
+        return None
+    
+    def generate_verification_token(self) -> str:
+        """
+        Generate an email verification token.
+        
+        Returns:
+            str: Verification token
+        """
+        token = str(uuid.uuid4())
+        self.email_verification_token = token
+        return token
+    
+    def generate_password_reset_token(self, expires_in: int = 3600) -> str:
+        """
+        Generate a password reset token.
+        
+        Args:
+            expires_in: Token expiration time in seconds (default: 1 hour)
+            
+        Returns:
+            str: Password reset token
+        """
+        token = str(uuid.uuid4())
+        self.password_reset_token = token
+        self.password_reset_expires = datetime.utcnow() + datetime.timedelta(seconds=expires_in)
+        return token
+    
+    def verify_password_reset_token(self, token: str) -> bool:
+        """
+        Verify a password reset token.
+        
+        Args:
+            token: Password reset token to verify
+            
+        Returns:
+            bool: True if token is valid and not expired, False otherwise
+        """
+        return (self.password_reset_token == token and 
+                self.password_reset_expires and 
+                self.password_reset_expires > datetime.utcnow())
+    
+    @property
+    def full_name(self) -> str:
+        """Get the user's full name."""
+        return f"{self.first_name} {self.last_name}"
+    
+    def to_dict(self, include_sensitive: bool = False) -> dict:
+        """
+        Convert user object to dictionary.
+        
+        Args:
+            include_sensitive: Whether to include sensitive information
+            
+        Returns:
+            dict: User data as dictionary
+        """
+        data = {
+            'id': self.id,
+            'email': self.email,
+            'first_name': self.first_name,
+            'last_name': self.last_name,
+            'full_name': self.full_name,
+            'is_active': self.is_active,
+            'is_verified': self.is_verified,
+            'created_at': self.created_at.isoformat(),
+            'last_active': self.last_active.isoformat(),
+            'last_login': self.last_login.isoformat() if self.last_login else None
+        }
+        
+        if include_sensitive:
+            data.update({
+                'email_verification_token': self.email_verification_token,
+                'password_reset_token': self.password_reset_token,
+                'password_reset_expires': self.password_reset_expires.isoformat() if self.password_reset_expires else None
+            })
+        
+        return data
 
 class Conversation(db.Model):
     """

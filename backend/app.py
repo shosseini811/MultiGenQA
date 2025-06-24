@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 import openai
 import google.generativeai as genai
 import anthropic
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import logging
 import traceback
 import json
@@ -17,6 +17,9 @@ import time
 from datetime import datetime, timedelta
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 import uuid
+import re
+from functools import wraps
+from email_validator import validate_email, EmailNotValidError
 
 # Import our database models
 from models import db, init_db, User, Conversation, Message, APIUsage
@@ -118,33 +121,311 @@ try:
 except Exception as e:
     logger.error(f"Failed to initialize Anthropic client: {e}")
 
-# Request middleware
+# Authentication decorator
+def auth_required(f):
+    """
+    Decorator to require authentication for endpoints.
+    
+    This decorator checks for a valid JWT token in the Authorization header.
+    If the token is valid, it sets the current user and continues with the request.
+    If not, it returns a 401 Unauthorized response.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        token = None
+        auth_header = request.headers.get('Authorization')
+        
+        if auth_header:
+            try:
+                # Extract token from "Bearer <token>" format
+                token = auth_header.split(' ')[1]
+            except IndexError:
+                return jsonify({'error': 'Invalid authorization header format'}), 401
+        
+        if not token:
+            return jsonify({'error': 'Authentication token is missing'}), 401
+        
+        try:
+            current_user = User.verify_auth_token(token)
+            if not current_user or not current_user.is_active:
+                return jsonify({'error': 'Invalid or expired token'}), 401
+            
+            # Set current user for the request
+            request.current_user = current_user
+            
+            # Update last active time
+            current_user.last_active = datetime.utcnow()
+            db.session.commit()
+            
+        except Exception as e:
+            logger.error(f"Token verification failed: {e}")
+            return jsonify({'error': 'Token verification failed'}), 401
+        
+        return f(*args, **kwargs)
+    
+    return decorated_function
+
+# Utility functions for validation
+def validate_password(password: str) -> List[str]:
+    """
+    Validate password strength.
+    
+    Returns a list of error messages if password is invalid.
+    """
+    errors = []
+    
+    if len(password) < 8:
+        errors.append("Password must be at least 8 characters long")
+    
+    if not re.search(r'[A-Z]', password):
+        errors.append("Password must contain at least one uppercase letter")
+    
+    if not re.search(r'[a-z]', password):
+        errors.append("Password must contain at least one lowercase letter")
+    
+    if not re.search(r'\d', password):
+        errors.append("Password must contain at least one number")
+    
+    if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+        errors.append("Password must contain at least one special character")
+    
+    return errors
+
+def validate_user_input(data: dict) -> Dict[str, List[str]]:
+    """
+    Validate user registration input.
+    
+    Returns a dictionary with field names as keys and error lists as values.
+    """
+    errors = {}
+    
+    # Validate email
+    email = data.get('email', '').strip().lower()
+    if not email:
+        errors['email'] = ['Email is required']
+    else:
+        try:
+            validate_email(email)
+        except EmailNotValidError as e:
+            errors['email'] = [str(e)]
+    
+    # Validate password
+    password = data.get('password', '')
+    if not password:
+        errors['password'] = ['Password is required']
+    else:
+        password_errors = validate_password(password)
+        if password_errors:
+            errors['password'] = password_errors
+    
+    # Validate names
+    first_name = data.get('first_name', '').strip()
+    if not first_name:
+        errors['first_name'] = ['First name is required']
+    elif len(first_name) < 2:
+        errors['first_name'] = ['First name must be at least 2 characters long']
+    
+    last_name = data.get('last_name', '').strip()
+    if not last_name:
+        errors['last_name'] = ['Last name is required']
+    elif len(last_name) < 2:
+        errors['last_name'] = ['Last name must be at least 2 characters long']
+    
+    return errors
+
+# Authentication endpoints
+@app.route('/api/auth/register', methods=['POST'])
+@limiter.limit("5 per minute")
+def register():
+    """
+    User registration endpoint.
+    
+    Creates a new user account with email and password.
+    """
+    try:
+        data = request.get_json()
+        
+        # Validate input
+        validation_errors = validate_user_input(data)
+        if validation_errors:
+            return jsonify({'errors': validation_errors}), 400
+        
+        email = data['email'].strip().lower()
+        
+        # Check if user already exists
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            return jsonify({'errors': {'email': ['User with this email already exists']}}), 409
+        
+        # Create new user
+        user = User(
+            email=email,
+            first_name=data['first_name'].strip(),
+            last_name=data['last_name'].strip()
+        )
+        user.set_password(data['password'])
+        
+        # Generate email verification token
+        verification_token = user.generate_verification_token()
+        
+        db.session.add(user)
+        db.session.commit()
+        
+        logger.info(f"New user registered: {email}")
+        
+        # In a real application, you would send an email verification here
+        # For now, we'll just return the token for testing
+        return jsonify({
+            'message': 'User registered successfully',
+            'user': user.to_dict(),
+            'verification_token': verification_token  # Remove this in production
+        }), 201
+        
+    except Exception as e:
+        logger.error(f"Registration error: {str(e)}")
+        return jsonify({'error': 'Registration failed'}), 500
+
+@app.route('/api/auth/login', methods=['POST'])
+@limiter.limit("10 per minute")
+def login():
+    """
+    User login endpoint.
+    
+    Authenticates user with email and password, returns JWT token.
+    """
+    try:
+        data = request.get_json()
+        email = data.get('email', '').strip().lower()
+        password = data.get('password', '')
+        
+        if not email or not password:
+            return jsonify({'error': 'Email and password are required'}), 400
+        
+        # Find user
+        user = User.query.filter_by(email=email).first()
+        
+        if not user or not user.check_password(password):
+            return jsonify({'error': 'Invalid email or password'}), 401
+        
+        if not user.is_active:
+            return jsonify({'error': 'Account is deactivated'}), 401
+        
+        # Update last login
+        user.last_login = datetime.utcnow()
+        user.last_active = datetime.utcnow()
+        db.session.commit()
+        
+        # Generate JWT token
+        token = user.generate_auth_token()
+        
+        logger.info(f"User logged in: {email}")
+        
+        return jsonify({
+            'message': 'Login successful',
+            'token': token,
+            'user': user.to_dict()
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        return jsonify({'error': 'Login failed'}), 500
+
+@app.route('/api/auth/logout', methods=['POST'])
+@auth_required
+def logout():
+    """
+    User logout endpoint.
+    
+    In a JWT-based system, logout is handled client-side by removing the token.
+    This endpoint is mainly for logging purposes.
+    """
+    try:
+        user = request.current_user
+        logger.info(f"User logged out: {user.email}")
+        
+        return jsonify({'message': 'Logout successful'}), 200
+        
+    except Exception as e:
+        logger.error(f"Logout error: {str(e)}")
+        return jsonify({'error': 'Logout failed'}), 500
+
+@app.route('/api/auth/me', methods=['GET'])
+@auth_required
+def get_current_user():
+    """
+    Get current user information.
+    
+    Returns the current authenticated user's profile.
+    """
+    try:
+        user = request.current_user
+        return jsonify({'user': user.to_dict()}), 200
+        
+    except Exception as e:
+        logger.error(f"Get current user error: {str(e)}")
+        return jsonify({'error': 'Failed to get user information'}), 500
+
+@app.route('/api/auth/verify-email', methods=['POST'])
+@limiter.limit("5 per minute")
+def verify_email():
+    """
+    Email verification endpoint.
+    
+    Verifies user's email address using the verification token.
+    """
+    try:
+        data = request.get_json()
+        token = data.get('token')
+        
+        if not token:
+            return jsonify({'error': 'Verification token is required'}), 400
+        
+        user = User.query.filter_by(email_verification_token=token).first()
+        
+        if not user:
+            return jsonify({'error': 'Invalid verification token'}), 400
+        
+        user.is_verified = True
+        user.email_verification_token = None
+        db.session.commit()
+        
+        logger.info(f"Email verified for user: {user.email}")
+        
+        return jsonify({'message': 'Email verified successfully'}), 200
+        
+    except Exception as e:
+        logger.error(f"Email verification error: {str(e)}")
+        return jsonify({'error': 'Email verification failed'}), 500
+
+# Request middleware (updated for new authentication)
 @app.before_request
 def before_request():
     # Generate request ID for tracing
     request.request_id = str(uuid.uuid4())[:8]
     
-    # Update user session
+    # Skip authentication setup for auth endpoints
+    if request.endpoint and request.endpoint.startswith('auth'):
+        return
+    
+    # For backward compatibility, maintain session-based users for now
+    # This will be removed once all users migrate to the new system
     if 'user_id' not in session:
         session['user_id'] = str(uuid.uuid4())
         
-        # Create user record
-        user = User(session_id=session['user_id'])
+        # Create legacy user record
+        user = User(
+            session_id=session['user_id'],
+            email=f"legacy-{session['user_id'][:8]}@example.com",
+            first_name="Legacy",
+            last_name="User"
+        )
+        user.set_password("temporary-password")
         db.session.add(user)
         try:
             db.session.commit()
         except Exception as e:
-            logger.error(f"Failed to create user: {e}")
+            logger.error(f"Failed to create legacy user: {e}")
             db.session.rollback()
-    
-    # Update last active time
-    try:
-        user = User.query.filter_by(session_id=session['user_id']).first()
-        if user:
-            user.last_active = datetime.utcnow()
-            db.session.commit()
-    except Exception as e:
-        logger.error(f"Failed to update user activity: {e}")
 
 @app.after_request
 def after_request(response):
@@ -365,9 +646,10 @@ class AIService:
             db.session.rollback()
 
 @app.route('/api/chat', methods=['POST'])
+@auth_required
 @limiter.limit("10 per minute")
 def chat():
-    """Enhanced chat endpoint with conversation persistence."""
+    """Enhanced chat endpoint with conversation persistence and authentication."""
     try:
         with REQUEST_DURATION.time():
             # Get data from the request
@@ -385,10 +667,8 @@ def chat():
                 logger.warning(error_msg, extra={'request_id': request.request_id})
                 return jsonify({'error': error_msg}), 400
             
-            # Get or create user
-            user = User.query.filter_by(session_id=session['user_id']).first()
-            if not user:
-                return jsonify({'error': 'User session not found'}), 401
+            # Get authenticated user
+            user = request.current_user
             
             # Get or create conversation
             if conversation_id:
@@ -472,13 +752,12 @@ def chat():
         return jsonify({'error': error_msg}), 500
 
 @app.route('/api/conversations', methods=['GET'])
+@auth_required
 @limiter.limit("30 per minute")
 def get_conversations():
     """Get user's conversation history."""
     try:
-        user = User.query.filter_by(session_id=session['user_id']).first()
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
+        user = request.current_user
         
         conversations = Conversation.query.filter_by(
             user_id=user.id, 
@@ -494,13 +773,12 @@ def get_conversations():
         return jsonify({'error': 'Failed to fetch conversations'}), 500
 
 @app.route('/api/conversations/<conversation_id>', methods=['GET'])
+@auth_required
 @limiter.limit("30 per minute")
 def get_conversation(conversation_id):
     """Get a specific conversation with messages."""
     try:
-        user = User.query.filter_by(session_id=session['user_id']).first()
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
+        user = request.current_user
         
         conversation = Conversation.query.filter_by(
             id=conversation_id,
@@ -593,13 +871,12 @@ def metrics():
     return generate_latest(), 200, {'Content-Type': CONTENT_TYPE_LATEST}
 
 @app.route('/api/usage', methods=['GET'])
+@auth_required
 @limiter.limit("10 per minute")
 def get_usage_stats():
     """Get user's API usage statistics."""
     try:
-        user = User.query.filter_by(session_id=session['user_id']).first()
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
+        user = request.current_user
         
         # Get usage for the last 30 days
         thirty_days_ago = datetime.utcnow() - timedelta(days=30)
