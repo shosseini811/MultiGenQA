@@ -103,14 +103,17 @@ const TOKEN_KEY = 'multigenqa_token';
 
 export const tokenManager = {
   getToken: (): string | null => {
-    console.log('🔍 tokenManager.getToken() called - checking for stored token...');
-    console.log('📍 Looking for token with key:', TOKEN_KEY);
+    // Only log once per session to avoid spam
+    const shouldLog = !sessionStorage.getItem('token_check_logged');
+    if (shouldLog) {
+      console.log('🔍 tokenManager.getToken() - checking for stored token...');
+      sessionStorage.setItem('token_check_logged', 'true');
+    }
     
     const token = localStorage.getItem(TOKEN_KEY);
     
-    if (token) {
-      console.log('✅ Token found in localStorage:', token.substring(0, 20) + '...');
-      console.log('🎫 User is logged in - token exists');
+    if (token && shouldLog) {
+      console.log('✅ Token found - user is logged in');
       
       // Try to decode the token to check expiration (for debugging)
       try {
@@ -127,9 +130,8 @@ export const tokenManager = {
       } catch (decodeError) {
         console.log('⚠️ Could not decode token for expiration check:', decodeError);
       }
-    } else {
-      console.log('❌ No token found in localStorage');
-      console.log('🚫 User is not logged in - no token exists');
+    } else if (!token && shouldLog) {
+      console.log('❌ No token found - user is not logged in');
     }
     
     return token;

@@ -1,12 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Loader, AlertCircle, Sparkles } from 'lucide-react';
-import ModelSelector from './components/ModelSelector';
-import ChatMessage from './components/ChatMessage';
+import { AuthProvider, useAuth } from './components/AuthProvider';
 import Login from './components/Login';
 import Register from './components/Register';
-import { AuthProvider, useAuth } from './components/AuthProvider';
+import ModelSelector from './components/ModelSelector';
+import ChatMessage from './components/ChatMessage';
 import { ApiService } from './services/api';
 import { AIModel, Message } from './types';
+
+import { Button } from './components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
+import { Textarea } from './components/ui/textarea';
+import { Badge } from './components/ui/badge';
+
+import { Sparkles, AlertCircle, Send, Trash2, Loader } from 'lucide-react';
 
 /*
 Main App Component
@@ -21,6 +27,7 @@ Key TypeScript/React concepts used here:
 - Generic types: useState<Type[]> tells TypeScript what type of data we're storing
 - React Context: For managing authentication state across the app
 - Conditional rendering: Showing different UI based on authentication state
+- shadcn/ui components: Modern, accessible UI components with TypeScript support
 */
 
 // Main Chat Interface Component (protected by authentication)
@@ -49,6 +56,8 @@ const ChatInterface: React.FC = () => {
   useEffect(() => {
     loadModels();
     checkBackendHealth();
+    // Set dark theme on mount
+    document.documentElement.classList.add('dark');
   }, []);
 
   // Scroll to bottom when new messages are added
@@ -151,37 +160,46 @@ const ChatInterface: React.FC = () => {
   };
 
   return (
-    <div className="app">
-      <div className="app__container">
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="max-w-6xl mx-auto p-4 space-y-6">
         {/* Header with User Info */}
-        <header className="app__header">
-          <div className="app__title">
-            <Sparkles size={32} color="#667eea" />
-            <h1>MultiGenQA</h1>
-          </div>
-          <div className="app__user-info">
-            <span className="app__welcome">
-              Welcome, {authState.user?.first_name}!
-            </span>
-            <button 
-              className="app__logout-btn" 
-              onClick={handleLogout}
-              title="Logout"
-            >
-              Logout
-            </button>
-          </div>
-          <p className="app__subtitle">
-            Chat with multiple AI models - OpenAI, Gemini, and Claude
-          </p>
-          
-          {!isHealthy && (
-            <div className="app__health-warning">
-              <AlertCircle size={16} />
-              Backend server not responding. Please start the Python backend.
+        <Card>
+          <CardHeader>
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <Sparkles className="h-8 w-8 text-primary" />
+                <div>
+                  <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
+                    MultiGenQA
+                  </CardTitle>
+                  <CardDescription className="text-base mt-1">
+                    Chat with multiple AI models - OpenAI, Gemini, and Claude
+                  </CardDescription>
+                </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <p className="text-sm text-muted-foreground">Welcome back,</p>
+                  <p className="font-medium">{authState.user?.first_name}!</p>
+                </div>
+                <Button 
+                  variant="outline" 
+                  onClick={handleLogout}
+                  className="hover:bg-destructive hover:text-destructive-foreground"
+                >
+                  Logout
+                </Button>
+              </div>
             </div>
-          )}
-        </header>
+            
+            {!isHealthy && (
+              <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive">
+                <AlertCircle className="h-4 w-4" />
+                <span className="text-sm">Backend server not responding. Please start the Python backend.</span>
+              </div>
+            )}
+          </CardHeader>
+        </Card>
 
         {/* Model Selector */}
         <ModelSelector
@@ -191,86 +209,107 @@ const ChatInterface: React.FC = () => {
         />
 
         {/* Chat Area */}
-        <div className="app__chat">
-          <div className="app__messages">
-            {messages.length === 0 ? (
-              <div className="app__welcome">
-                <Sparkles size={48} color="#667eea" />
-                <h3>Welcome to MultiGenQA!</h3>
-                <p>Select an AI model above and start chatting.</p>
+        <div className="grid grid-cols-1 gap-6 min-h-[600px]">
+          <Card className="flex flex-col">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Chat</CardTitle>
+                {selectedModel && (
+                  <Badge variant="secondary" className="text-xs">
+                    {selectedModel.name}
+                  </Badge>
+                )}
               </div>
-            ) : (
-              messages.map((message, index) => (
-                <ChatMessage
-                  key={index}
-                  message={message}
-                  model={selectedModel?.name}
-                />
-              ))
-            )}
-            
-            {isLoading && (
-              <div className="app__loading">
-                <Loader className="app__loading-spinner" size={20} />
-                <span>AI is thinking...</span>
+            </CardHeader>
+            <CardContent className="flex-1 flex flex-col">
+              <div className="flex-1 overflow-y-auto space-y-4 min-h-[400px] max-h-[500px] p-4 bg-muted/30 rounded-lg">
+                {messages.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
+                    <Sparkles className="h-12 w-12 text-primary/50" />
+                    <div>
+                      <h3 className="text-xl font-semibold mb-2">Welcome to MultiGenQA!</h3>
+                      <p className="text-muted-foreground">Select an AI model above and start chatting.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {messages.map((message, index) => (
+                      <ChatMessage
+                        key={index}
+                        message={message}
+                        model={selectedModel?.name}
+                      />
+                    ))}
+                    {isLoading && (
+                      <div className="flex items-center justify-center py-4">
+                        <Loader className="h-5 w-5 animate-spin text-primary" />
+                        <span className="ml-2 text-sm text-muted-foreground">AI is thinking...</span>
+                      </div>
+                    )}
+                    <div ref={messagesEndRef} />
+                  </>
+                )}
               </div>
-            )}
-            
-            <div ref={messagesEndRef} />
-          </div>
 
-          {/* Input Area */}
-          <div className="app__input-area">
-            {error && (
-              <div className="app__error">
-                <AlertCircle size={16} />
-                {error}
+              {/* Error Display */}
+              {error && (
+                <div className="flex items-center gap-2 p-3 mt-4 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <span className="text-sm">{error}</span>
+                </div>
+              )}
+              
+              {/* Input Area */}
+              <div className="mt-4 space-y-3">
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <Textarea
+                      ref={textareaRef}
+                      value={inputMessage}
+                      onChange={(e) => {
+                        setInputMessage(e.target.value);
+                        autoResizeTextarea();
+                      }}
+                      onKeyDown={handleKeyPress}
+                      placeholder={selectedModel ? `Ask ${selectedModel.name} anything...` : "Select a model to start chatting"}
+                      disabled={!selectedModel || isLoading}
+                      className="min-h-[60px] max-h-[200px] resize-none"
+                    />
+                    <div className="flex justify-between items-center mt-2">
+                      <span className="text-xs text-muted-foreground">
+                        {inputMessage.length}/2000 characters
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        Press Enter to send, Shift+Enter for new line
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      onClick={handleSendMessage}
+                      disabled={!inputMessage.trim() || !selectedModel || isLoading}
+                      className="h-[60px] px-6"
+                    >
+                      {isLoading ? (
+                        <Loader className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={clearChat}
+                      disabled={messages.length === 0}
+                      className="h-[60px] px-6"
+                      title="Clear chat"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               </div>
-            )}
-            
-            <div className="app__input-container">
-              <div className="app__input-wrapper">
-                <textarea
-                  ref={textareaRef}
-                  className="app__input"
-                  value={inputMessage}
-                  onChange={(e) => {
-                    setInputMessage(e.target.value);
-                    autoResizeTextarea();
-                  }}
-                  onKeyPress={handleKeyPress}
-                  placeholder={
-                    selectedModel 
-                      ? `Message ${selectedModel.name}...`
-                      : 'Select a model to start chatting...'
-                  }
-                  disabled={!selectedModel || isLoading}
-                  rows={1}
-                />
-                <button
-                  className="app__send-button"
-                  onClick={handleSendMessage}
-                  disabled={!inputMessage.trim() || !selectedModel || isLoading}
-                >
-                  {isLoading ? (
-                    <Loader size={16} />
-                  ) : (
-                    <Send size={16} />
-                  )}
-                </button>
-              </div>
-            </div>
-            
-            {messages.length > 0 && (
-              <button
-                className="app__clear-button"
-                onClick={clearChat}
-                disabled={isLoading}
-              >
-                Clear Chat
-              </button>
-            )}
-          </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

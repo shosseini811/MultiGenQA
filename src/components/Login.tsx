@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Mail, Lock, AlertCircle, Loader } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, AlertCircle, User, LogIn, Loader2 } from 'lucide-react';
 import { ApiService } from '../services/api';
 import { LoginRequest, AuthResponse } from '../types';
+import { Button } from './ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Input } from './ui/input';
 
 /*
 Login Component
@@ -14,6 +17,7 @@ It demonstrates several important TypeScript and React concepts:
 3. Async/await: Handling asynchronous API calls
 4. Error handling: Managing and displaying errors to users
 5. Conditional rendering: Showing different UI based on state
+6. shadcn/ui components: Modern, accessible UI components with TypeScript support
 */
 
 interface LoginProps {
@@ -21,7 +25,7 @@ interface LoginProps {
   onSwitchToRegister: () => void;
 }
 
-const Login: React.FC<LoginProps> = ({ onLoginSuccess, onSwitchToRegister }) => {
+export default function Login({ onLoginSuccess, onSwitchToRegister }: LoginProps) {
   // State management with TypeScript
   const [formData, setFormData] = useState<LoginRequest>({
     email: '',
@@ -92,116 +96,124 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess, onSwitchToRegister }) => 
   };
 
   return (
-    <div className="login-container">
-      <div className="login-card">
-        <div className="login-header">
-          <h2>Welcome Back</h2>
-          <p>Sign in to your MultiGenQA account</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="login-form">
-          {/* General Error Message */}
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-claude-cream via-claude-cream-light to-white p-4">
+      <Card className="w-full max-w-md shadow-claude-xl border-claude-orange/20 bg-white/90 backdrop-blur-sm">
+        <CardHeader className="space-y-1 text-center pb-6">
+          <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-claude-orange to-claude-purple rounded-full flex items-center justify-center">
+            <User className="w-8 h-8 text-white" />
+          </div>
+          <CardTitle className="text-2xl font-bold text-claude-gray-800">Welcome Back</CardTitle>
+          <CardDescription className="text-claude-gray-600">
+            Sign in to your MultiGenQA account
+          </CardDescription>
+        </CardHeader>
+        
+        <CardContent className="space-y-4">
           {error && (
-            <div className="error-message">
-              <AlertCircle size={16} />
-              <span>{error}</span>
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center gap-2 text-red-700">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span className="text-sm">{error}</span>
+              </div>
             </div>
           )}
 
-          {/* Email Field */}
-          <div className="form-group">
-            <label htmlFor="email">Email Address</label>
-            <div className="input-wrapper">
-              <Mail className="input-icon" size={18} />
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                placeholder="Enter your email"
-                required
-                className={fieldErrors.email ? 'error' : ''}
-                disabled={isLoading}
-              />
-            </div>
-            {fieldErrors.email && (
-              <div className="field-errors">
-                {fieldErrors.email.map((error, index) => (
-                  <span key={index} className="field-error">{error}</span>
-                ))}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <label htmlFor="email" className="text-sm font-medium text-claude-gray-700">
+                Email
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-claude-gray-400 w-4 h-4" />
+                <Input
+                  id="email"
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  placeholder="Enter your email"
+                  className="pl-10 border-claude-orange/30 focus:border-claude-orange bg-white text-claude-gray-800 placeholder-claude-gray-400"
+                  required
+                  disabled={isLoading}
+                />
               </div>
-            )}
-          </div>
+              {fieldErrors.email && (
+                <div className="space-y-1">
+                  {fieldErrors.email.map((error, index) => (
+                    <p key={index} className="text-sm text-destructive">{error}</p>
+                  ))}
+                </div>
+              )}
+            </div>
 
-          {/* Password Field */}
-          <div className="form-group">
-            <label htmlFor="password">Password</label>
-            <div className="input-wrapper">
-              <Lock className="input-icon" size={18} />
-              <input
-                type={showPassword ? 'text' : 'password'}
-                id="password"
-                name="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                placeholder="Enter your password"
-                required
-                className={fieldErrors.password ? 'error' : ''}
-                disabled={isLoading}
-              />
+            <div className="space-y-2">
+              <label htmlFor="password" className="text-sm font-medium text-claude-gray-700">
+                Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-claude-gray-400 w-4 h-4" />
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  placeholder="Enter your password"
+                  className="pl-10 pr-10 border-claude-orange/30 focus:border-claude-orange bg-white text-claude-gray-800 placeholder-claude-gray-400"
+                  required
+                  disabled={isLoading}
+                />
+                <button
+                  type="button"
+                  onClick={togglePasswordVisibility}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-claude-gray-400 hover:text-claude-orange transition-colors"
+                  disabled={isLoading}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {fieldErrors.password && (
+                <div className="space-y-1">
+                  {fieldErrors.password.map((error, index) => (
+                    <p key={index} className="text-sm text-destructive">{error}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <Button
+              type="submit"
+              disabled={isLoading || !formData.email || !formData.password}
+              className="w-full bg-gradient-to-r from-claude-orange to-claude-orange-dark hover:from-claude-orange-dark hover:to-claude-orange-darker text-white border-0 shadow-claude-md hover:shadow-claude-lg transition-all duration-200 py-2.5"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                <>
+                  <LogIn className="w-4 h-4 mr-2" />
+                  Sign In
+                </>
+              )}
+            </Button>
+          </form>
+
+          <div className="text-center pt-4 border-t border-claude-orange/10">
+            <p className="text-sm text-claude-gray-600">
+              Don't have an account?{' '}
               <button
-                type="button"
-                className="password-toggle"
-                onClick={togglePasswordVisibility}
+                onClick={onSwitchToRegister}
+                className="font-medium text-claude-orange hover:text-claude-orange-dark transition-colors hover:underline"
                 disabled={isLoading}
               >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                Sign up
               </button>
-            </div>
-            {fieldErrors.password && (
-              <div className="field-errors">
-                {fieldErrors.password.map((error, index) => (
-                  <span key={index} className="field-error">{error}</span>
-                ))}
-              </div>
-            )}
+            </p>
           </div>
-
-          {/* Submit Button */}
-          <button
-            type="submit"
-            className="login-button"
-            disabled={isLoading || !formData.email || !formData.password}
-          >
-            {isLoading ? (
-              <>
-                <Loader className="loading-spinner" size={16} />
-                Signing In...
-              </>
-            ) : (
-              'Sign In'
-            )}
-          </button>
-        </form>
-
-        {/* Switch to Register */}
-        <div className="login-footer">
-          <p>
-            Don't have an account?{' '}
-            <button
-              type="button"
-              className="link-button"
-              onClick={onSwitchToRegister}
-              disabled={isLoading}
-            >
-              Sign up here
-            </button>
-          </p>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
-};
-
-export default Login; 
+} 

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { User, AuthState } from '../types';
 import { ApiService, tokenManager } from '../services/api';
 
@@ -49,6 +49,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading: true // Start with loading true while we check for existing token
   });
 
+  // Ref to prevent multiple simultaneous auth checks
+  const authCheckInProgress = useRef(false);
+
   /*
   Initialize Authentication State
   
@@ -57,23 +60,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   */
   useEffect(() => {
     const initializeAuth = async () => {
-      const token = tokenManager.getToken();
+      // Prevent multiple simultaneous auth checks
+      if (authCheckInProgress.current) {
+        return;
+      }
       
-      if (token) {
-        try {
-          // Verify the token by getting current user info
-          const user = await ApiService.getCurrentUser();
-          
-          setAuthState({
-            isAuthenticated: true,
-            user,
-            token,
-            isLoading: false
-          });
-        } catch (error) {
-          // Token is invalid or expired
-          console.error('Token verification failed:', error);
-          tokenManager.removeToken();
+      authCheckInProgress.current = true;
+      
+      try {
+        const token = tokenManager.getToken();
+        
+        if (token) {
+          try {
+            // Verify the token by getting current user info
+            const user = await ApiService.getCurrentUser();
+            
+            setAuthState({
+              isAuthenticated: true,
+              user,
+              token,
+              isLoading: false
+            });
+          } catch (error) {
+            // Token is invalid or expired
+            console.error('Token verification failed:', error);
+            tokenManager.removeToken();
+            setAuthState({
+              isAuthenticated: false,
+              user: null,
+              token: null,
+              isLoading: false
+            });
+          }
+        } else {
+          // No token found
           setAuthState({
             isAuthenticated: false,
             user: null,
@@ -81,14 +101,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             isLoading: false
           });
         }
-      } else {
-        // No token found
-        setAuthState({
-          isAuthenticated: false,
-          user: null,
-          token: null,
-          isLoading: false
-        });
+      } finally {
+        authCheckInProgress.current = false;
       }
     };
 

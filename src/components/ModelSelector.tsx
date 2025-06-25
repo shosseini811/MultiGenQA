@@ -1,5 +1,9 @@
 import React from 'react';
 import { AIModel } from '../types';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Button } from './ui/button';
+import { Badge } from './ui/badge';
+import { ChevronDown, Bot, AlertCircle } from 'lucide-react';
 
 /*
 TypeScript Interface for Component Props
@@ -25,98 +29,81 @@ This is a "functional component" - think of it as a function that returns HTML.
 The ": React.FC<ModelSelectorProps>" part tells TypeScript:
 - This is a React Functional Component
 - It expects props that match the ModelSelectorProps interface
-
-The component renders a dropdown/select element with all available AI models.
+- Now uses a simple dropdown with Claude.ai colors
 */
-const ModelSelector: React.FC<ModelSelectorProps> = ({
-  models,
-  selectedModel,
-  onModelSelect
-}) => {
-  return (
-    <div className="model-selector">
-      <label htmlFor="model-select" className="model-selector__label">
-        Choose AI Model:
-      </label>
-      
-      <select
-        id="model-select"
-        className="model-selector__select"
-        value={selectedModel?.id || ''}
-        onChange={(e) => {
-          // Find the selected model by its ID
-          const selected = models.find(model => model.id === e.target.value);
-          if (selected) {
-            onModelSelect(selected);
-          }
-        }}
-      >
-        <option value="">Select a model...</option>
-        {models.map((model) => (
-          <option key={model.id} value={model.id}>
-            {model.name}
-          </option>
-        ))}
-      </select>
-      
-      {selectedModel && (
-        <p className="model-selector__description">
-          {selectedModel.description}
-        </p>
-      )}
-      
-      <style>{`
-        .model-selector {
-          margin-bottom: 24px;
-        }
-        
-        .model-selector__label {
-          display: block;
-          margin-bottom: 12px;
-          font-weight: 600;
-          color: rgba(255, 255, 255, 0.9);
-          font-size: 16px;
-        }
-        
-        .model-selector__select {
-          width: 100%;
-          padding: 16px 20px;
-          border: 2px solid rgba(255, 255, 255, 0.2);
-          border-radius: 12px;
-          font-size: 16px;
-          background: rgba(255, 255, 255, 0.1);
-          color: white;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          backdrop-filter: blur(10px);
-        }
-        
-        .model-selector__select option {
-          background: #1d4ed8;
-          color: white;
-          padding: 8px;
-        }
-        
-        .model-selector__select:focus {
-          outline: none;
-          border-color: rgba(255, 255, 255, 0.4);
-          box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.1);
-          background: rgba(255, 255, 255, 0.15);
-        }
-        
-        .model-selector__description {
-          margin-top: 12px;
-          font-size: 14px;
-          color: rgba(255, 255, 255, 0.8);
-          font-style: italic;
-          background: rgba(255, 255, 255, 0.1);
-          padding: 12px;
-          border-radius: 8px;
-          backdrop-filter: blur(10px);
-        }
-      `}</style>
-    </div>
-  );
-};
+export default function ModelSelector({ models, selectedModel, onModelSelect }: ModelSelectorProps) {
+  const [isOpen, setIsOpen] = React.useState(false);
 
-export default ModelSelector; 
+  if (models.length === 0) {
+    return (
+      <Card>
+        <CardContent className="p-6 text-center">
+          <AlertCircle className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+          <p className="text-muted-foreground">No models available</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Please check if the backend server is running.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Choose AI Model</CardTitle>
+        <CardDescription>
+          Select which AI model you want to chat with
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="relative">
+          <Button
+            variant="outline"
+            className="w-full justify-between"
+            onClick={() => setIsOpen(!isOpen)}
+          >
+            <div className="flex items-center gap-2">
+              <Bot className="h-4 w-4" />
+              {selectedModel ? selectedModel.name : 'Select a model'}
+            </div>
+            <ChevronDown className="h-4 w-4" />
+          </Button>
+          
+          {isOpen && (
+            <div className="absolute top-full left-0 right-0 z-10 mt-1 bg-card border border-border rounded-md shadow-lg">
+              {models.map((model) => (
+                <button
+                  key={model.id}
+                  className="w-full px-4 py-3 text-left hover:bg-muted transition-colors flex items-center justify-between"
+                  onClick={() => {
+                    onModelSelect(model);
+                    setIsOpen(false);
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <Bot className="h-4 w-4" />
+                    <span className="font-medium">{model.name}</span>
+                  </div>
+                  {selectedModel?.id === model.id && (
+                    <Badge variant="default" className="text-xs">
+                      Selected
+                    </Badge>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        {selectedModel && (
+          <div className="mt-4 p-3 bg-muted/50 rounded-lg">
+            <p className="text-sm text-muted-foreground">
+              Ready to chat with <strong>{selectedModel.name}</strong>
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+} 

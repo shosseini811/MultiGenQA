@@ -8,7 +8,7 @@ Props interface for ChatMessage component
 This component will display a single message in the chat.
 It needs to know:
 - message: the Message object containing role and content
-- model: which AI model sent this message (if it's from assistant)
+- model: optional model name to display
 */
 interface ChatMessageProps {
   message: Message;
@@ -18,105 +18,56 @@ interface ChatMessageProps {
 /*
 ChatMessage Component
 
-This component displays a single chat message.
+This component displays a single chat message with Claude.ai inspired colors.
 It shows different styling for user messages vs AI assistant messages.
 
 Key TypeScript concepts here:
 - We use the Message interface to ensure type safety
-- We use conditional rendering (&&) to show content only when conditions are met
-- We use template literals (`${variable}`) to build CSS classes dynamically
+- We use conditional rendering to show content only when conditions are met
+- We use template literals to build CSS classes dynamically
 */
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, model }) => {
+export default function ChatMessage({ message, model }: ChatMessageProps) {
   const isUser = message.role === 'user';
-  
+
   return (
-    <div className={`chat-message ${isUser ? 'chat-message--user' : 'chat-message--assistant'}`}>
-      <div className="chat-message__avatar">
-        {isUser ? (
-          <User size={20} color="#667eea" />
-        ) : (
-          <Bot size={20} color="#10b981" />
-        )}
-      </div>
-      
-      <div className="chat-message__content">
-        <div className="chat-message__header">
-          <span className="chat-message__sender">
-            {isUser ? 'You' : (model || 'AI')}
-          </span>
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
+      <div className={`max-w-[80%] rounded-lg p-4 ${
+        isUser 
+          ? 'bg-primary text-primary-foreground' 
+          : 'bg-card text-card-foreground border border-border'
+      }`}>
+        <div className="flex items-start gap-3">
+          <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+            isUser 
+              ? 'bg-primary-foreground/20' 
+              : 'bg-primary/10'
+          }`}>
+            {isUser ? (
+              <User className="w-4 h-4" />
+            ) : (
+              <Bot className="w-4 h-4" />
+            )}
+          </div>
+          
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-medium opacity-70">
+                {isUser ? 'You' : (model || 'Assistant')}
+              </span>
+              <span className="text-xs opacity-50">
+                {new Date().toLocaleTimeString([], { 
+                  hour: '2-digit', 
+                  minute: '2-digit' 
+                })}
+              </span>
+            </div>
+            
+            <div className="text-sm leading-relaxed whitespace-pre-wrap">
+              {message.content}
+            </div>
+          </div>
         </div>
-        
-        <div className="chat-message__text">
-          {message.content}
-        </div>
       </div>
-      
-      <style>{`
-        .chat-message {
-          display: flex;
-          gap: 16px;
-          margin-bottom: 24px;
-          padding: 20px;
-          border-radius: 16px;
-          max-width: 85%;
-          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-          border: 1px solid rgba(0, 0, 0, 0.05);
-        }
-        
-        .chat-message--user {
-          background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
-          margin-left: auto;
-          flex-direction: row-reverse;
-          border-left: 4px solid #3b82f6;
-        }
-        
-        .chat-message--assistant {
-          background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-          margin-right: auto;
-          border-left: 4px solid #10b981;
-        }
-        
-        .chat-message__avatar {
-          flex-shrink: 0;
-          width: 44px;
-          height: 44px;
-          border-radius: 50%;
-          background: white;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-          border: 2px solid #f8fafc;
-        }
-        
-        .chat-message__content {
-          flex: 1;
-          min-width: 0;
-        }
-        
-        .chat-message__header {
-          margin-bottom: 8px;
-        }
-        
-        .chat-message__sender {
-          font-size: 13px;
-          font-weight: 700;
-          color: #64748b;
-          text-transform: uppercase;
-          letter-spacing: 0.8px;
-        }
-        
-        .chat-message__text {
-          font-size: 16px;
-          line-height: 1.6;
-          color: #1e293b;
-          word-wrap: break-word;
-          white-space: pre-wrap;
-          font-weight: 400;
-        }
-      `}</style>
     </div>
   );
-};
-
-export default ChatMessage; 
+} 

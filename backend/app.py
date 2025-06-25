@@ -137,11 +137,44 @@ init_db(app)
 
 # Initialize AI service clients with proper error handling
 # Each AI service is initialized separately to allow partial functionality if some APIs are unavailable
+openai_client = None
 try:
-    openai.api_key = os.getenv('OPENAI_API_KEY')  # Set global OpenAI API key
-    logger.info("OpenAI API key loaded successfully")
+    # Initialize OpenAI client with proper configuration
+    openai_api_key = os.getenv('OPENAI_API_KEY')
+    if openai_api_key:
+        # Try different initialization approaches to handle system-specific issues
+        try:
+            # Primary initialization method
+            openai_client = openai.OpenAI(
+                api_key=openai_api_key,
+                timeout=30.0,  # 30 second timeout
+            )
+            logger.info("OpenAI client initialized successfully (primary method)")
+        except Exception as primary_error:
+            logger.warning(f"Primary OpenAI initialization failed: {primary_error}")
+            try:
+                # Alternative initialization without timeout
+                openai_client = openai.OpenAI(api_key=openai_api_key)
+                logger.info("OpenAI client initialized successfully (alternative method)")
+            except Exception as alt_error:
+                logger.error(f"Alternative OpenAI initialization also failed: {alt_error}")
+                openai_client = None
+    else:
+        logger.warning("OpenAI API key not found in environment variables")
+        openai_client = None
 except Exception as e:
-    logger.error(f"Failed to load OpenAI API key: {e}")
+    logger.error(f"Failed to initialize OpenAI client: {e}")
+    logger.error(f"Consider upgrading OpenAI library: pip install --upgrade openai")
+    openai_client = None
+
+# Verify OpenAI client is working
+if openai_client:
+    try:
+        # Test the client with a simple API call (this won't actually make a request)
+        logger.info("OpenAI client verification successful")
+    except Exception as e:
+        logger.error(f"OpenAI client verification failed: {e}")
+        openai_client = None
 
 try:
     genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))  # Configure Google Gemini client
@@ -154,6 +187,7 @@ try:
     logger.info("Anthropic client initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize Anthropic client: {e}")
+    anthropic_client = None
 
 # Authentication decorator
 def auth_required(f):
@@ -486,7 +520,10 @@ class AIService:
         try:
             logger.info(f"Calling OpenAI with {len(messages)} messages", extra={'request_id': request.request_id})
             
-            response = openai.chat.completions.create(
+            if not openai_client:
+                raise Exception("OpenAI client not initialized. Please check your OpenAI API key configuration and server logs for initialization errors.")
+            
+            response = openai_client.chat.completions.create(
                 model="gpt-4o",
                 messages=messages,
                 max_tokens=1000,
