@@ -43,9 +43,96 @@ from email_validator import validate_email, EmailNotValidError
 # Import our custom database models and initialization
 from models import db, init_db, User, Conversation, Message, APIUsage
 
+"""
+MultiGenQA Backend API - Complete Guide for Beginners
+
+This is the backend server for our MultiGenQA application. It's built with Flask,
+a Python web framework that makes it easy to create REST APIs.
+
+=== What is a REST API? ===
+
+REST stands for "Representational State Transfer". It's a way for different
+computer programs to talk to each other over the internet using HTTP.
+
+Think of it like a restaurant:
+- The frontend (React app) is the customer
+- The backend (this Flask app) is the waiter
+- The AI services (OpenAI, Gemini, Claude) are the kitchen
+- HTTP requests are like orders: "GET me the menu", "POST this order to the kitchen"
+
+=== Key Flask Concepts ===
+
+1. **Routes**: Functions that handle specific URL endpoints
+   - @app.route('/api/chat', methods=['POST']) means "when someone POSTs to /api/chat, run this function"
+   - Like having different waiters for different types of requests
+
+2. **Request/Response**: How data flows in and out
+   - request.json contains data sent from frontend
+   - jsonify() converts Python data to JSON for the frontend
+   - Like taking an order and bringing back food
+
+3. **Middleware**: Code that runs before/after every request
+   - Authentication checks, logging, error handling
+   - Like security guards checking IDs before letting people in
+
+=== Security Features ===
+
+1. **Authentication**: JWT tokens prove who users are
+2. **Rate Limiting**: Prevents spam and abuse
+3. **CORS**: Controls which websites can use our API
+4. **Input Validation**: Ensures data is safe and correct
+5. **Error Handling**: Graceful responses when things go wrong
+
+=== Architecture Overview ===
+
+Frontend → Flask Routes → Business Logic → AI Services → Database
+    ↑                                                        ↓
+    ← JSON Response ← Error Handling ← Response Processing ←
+
+=== Environment Variables ===
+
+The app uses environment variables for configuration:
+- DATABASE_URL: Where to store user data and conversations
+- OPENAI_API_KEY: Access key for OpenAI GPT models
+- GOOGLE_API_KEY: Access key for Google Gemini
+- ANTHROPIC_API_KEY: Access key for Anthropic Claude
+- SECRET_KEY: Used for JWT token signing and security
+- REDIS_URL: For caching and rate limiting (optional)
+
+=== Error Handling Strategy ===
+
+We use multiple layers of error handling:
+1. Input validation (check data format and requirements)
+2. Try/catch blocks around external API calls
+3. Global error handlers for unexpected errors
+4. Structured logging for debugging
+5. User-friendly error messages
+"""
+
 # Custom JSON formatter for structured logging
 # This ensures all log entries are in a consistent JSON format for better log analysis
 class JSONFormatter(logging.Formatter):
+    """
+    Custom JSON Log Formatter
+    
+    Why use JSON for logs?
+    - Machine readable: Easy to parse and analyze with tools
+    - Structured: Each log entry has consistent fields
+    - Searchable: Can query logs by specific fields
+    - Aggregatable: Easy to collect logs from multiple servers
+    
+    Log entry structure:
+    {
+        "timestamp": "2024-01-20T10:30:00Z",
+        "level": "INFO",
+        "message": "User logged in successfully",
+        "module": "app",
+        "function": "login",
+        "line": 123,
+        "request_id": "req_abc123",
+        "exception": "..." (only if error)
+    }
+    """
     def format(self, record):
         # Create structured log entry with all relevant context
         log_entry = {
@@ -78,27 +165,91 @@ logger.info("Loading environment variables...")
 # Create the main Flask application instance
 app = Flask(__name__)
 
+"""
+Flask Application Configuration
+
+These settings control how Flask behaves:
+- SECRET_KEY: Used for cryptographic operations (JWT signing, session cookies)
+- Database settings: Where and how to store data
+- Cache settings: Performance optimization
+- Security settings: CORS, CSP, etc.
+
+Why use environment variables?
+- Secrets stay out of source code (security)
+- Different settings for development vs production
+- Easy to change config without code changes
+- Follows 12-factor app principles
+"""
+
 # Flask application configuration
 # SECRET_KEY is used for JWT tokens and session security
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+
 # Database connection string - supports PostgreSQL, MySQL, SQLite
+# Format examples:
+# - SQLite: 'sqlite:///multigenqa.db' (file-based, good for development)
+# - PostgreSQL: 'postgresql://user:password@localhost:5432/dbname' (production)
+# - MySQL: 'mysql://user:password@localhost:3306/dbname'
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///multigenqa.db')
+
 # Disable SQLAlchemy event system for better performance
+# The event system tracks all changes to objects, which uses memory
+# We don't need this feature, so we disable it for better performance
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Cache configuration - uses Redis in production, simple in-memory cache for development
+# Caching improves performance by storing frequently accessed data in memory
+# Redis is better for production because it's shared between multiple server instances
 app.config['CACHE_TYPE'] = 'redis' if os.getenv('REDIS_URL') else 'simple'
 app.config['CACHE_REDIS_URL'] = os.getenv('REDIS_URL', 'redis://localhost:6379')
 
 # Initialize Flask extensions
 cache = Cache(app)  # Caching layer for performance optimization
 
-# CORS (Cross-Origin Resource Sharing) configuration
-# This allows our frontend to communicate with the backend from different origins
+"""
+CORS (Cross-Origin Resource Sharing) Configuration
+
+What is CORS?
+- Web browsers block requests between different origins (domains/ports) for security
+- Our frontend (localhost:3000) and backend (localhost:5001) are different origins
+- CORS tells the browser "it's okay for these origins to talk to each other"
+
+Without CORS:
+- Frontend tries to call backend API
+- Browser blocks the request with CORS error
+- User sees broken functionality
+
+With CORS:
+- Backend sends special headers telling browser it's okay
+- Browser allows the request to proceed
+- Everything works smoothly
+
+supports_credentials=True allows cookies and auth headers to be sent
+"""
 cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:3001').split(',')
 CORS(app, origins=cors_origins, supports_credentials=True)  # Enable cookie/auth headers
 
-# Security headers configuration using Talisman
+"""
+Security Headers Configuration using Talisman
+
+Web security is like building security - you need multiple layers:
+
+1. **Content Security Policy (CSP)**: Controls what resources can be loaded
+   - Prevents XSS attacks by blocking malicious scripts
+   - Like having a guest list for a building
+
+2. **HTTPS Enforcement**: Encrypts all communication
+   - Prevents eavesdropping and tampering
+   - Like using sealed envelopes instead of postcards
+
+3. **HSTS (HTTP Strict Transport Security)**: Forces HTTPS
+   - Prevents downgrade attacks
+   - Like having a policy that all communication must be encrypted
+
+Why different settings for development vs production?
+- Development: Relaxed security for easier debugging
+- Production: Strict security to protect real users and data
+"""
 # Content Security Policy to prevent XSS and other attacks
 csp = {
     'default-src': "'self'",  # Only allow resources from same origin by default
@@ -115,8 +266,30 @@ if os.getenv('FLASK_ENV') == 'production':
              strict_transport_security=True,  # HSTS header
              content_security_policy=csp)  # CSP header
 
-# Rate limiting configuration to prevent API abuse
-# Uses client IP address as the key for rate limiting
+"""
+Rate Limiting Configuration
+
+What is rate limiting?
+- Prevents users from making too many requests too quickly
+- Protects against spam, abuse, and accidental infinite loops
+- Like having a bouncer at a club who limits how fast people can enter
+
+How it works:
+1. Each client IP address gets a "bucket" of allowed requests
+2. Each request uses up one "token" from the bucket
+3. Tokens are refilled over time (e.g., 100 per minute)
+4. When bucket is empty, requests are blocked until tokens refill
+
+Benefits:
+- Prevents API abuse and spam
+- Ensures fair usage among all users
+- Protects server from being overwhelmed
+- Prevents accidental infinite loops from crashing the service
+
+Storage options:
+- Memory: Fast but doesn't work with multiple servers
+- Redis: Shared between servers, better for production
+"""
 limiter = Limiter(
     key_func=get_remote_address,  # Rate limit by client IP
     default_limits=["1000 per hour", "100 per minute"],  # Default limits for all endpoints
@@ -124,8 +297,40 @@ limiter = Limiter(
 )
 limiter.init_app(app)  # Initialize with Flask app
 
+"""
+Prometheus Metrics for Monitoring and Observability
+
+What is observability?
+- The ability to understand what's happening inside your application
+- Like having dashboards and gauges in a car to monitor engine performance
+- Essential for maintaining reliable services
+
+Types of metrics we track:
+
+1. **Counters**: Things that only go up (total requests, total errors)
+   - "How many requests have we handled today?"
+   - "How many users have registered this week?"
+
+2. **Histograms**: Distribution of values over time (response times)
+   - "What's the average response time?"
+   - "How many requests took longer than 5 seconds?"
+
+3. **Gauges**: Current state values (active users, memory usage)
+   - "How many users are currently online?"
+   - "How much memory are we using right now?"
+
+Why track metrics?
+- Detect problems before users complain
+- Understand usage patterns and trends
+- Optimize performance based on real data
+- Prove that your service is reliable
+- Debug issues when they occur
+
+Labels add dimensions to metrics:
+- REQUEST_COUNT with labels ['method', 'endpoint', 'status']
+- Lets us ask: "How many POST requests to /api/chat returned 500 errors?"
+"""
 # Prometheus metrics for monitoring and observability
-# These metrics help track application performance and usage patterns
 REQUEST_COUNT = Counter('http_requests_total', 'Total HTTP requests', ['method', 'endpoint', 'status'])
 REQUEST_DURATION = Histogram('http_request_duration_seconds', 'HTTP request duration')
 AI_REQUEST_COUNT = Counter('ai_requests_total', 'Total AI API requests', ['model', 'status'])
@@ -135,8 +340,34 @@ AI_REQUEST_DURATION = Histogram('ai_request_duration_seconds', 'AI API request d
 # This creates all tables and indexes if they don't exist
 init_db(app)
 
-# Initialize AI service clients with proper error handling
-# Each AI service is initialized separately to allow partial functionality if some APIs are unavailable
+"""
+AI Service Client Initialization
+
+We support three major AI providers:
+1. **OpenAI**: GPT-4, GPT-3.5-turbo (most popular, good general performance)
+2. **Google Gemini**: Google's latest AI model (good at reasoning, free tier)
+3. **Anthropic Claude**: Focus on safety and helpfulness (good for sensitive topics)
+
+Why multiple providers?
+- Redundancy: If one service is down, others still work
+- Cost optimization: Different pricing models
+- Feature differences: Some models are better at specific tasks
+- User choice: Let users pick their preferred AI
+
+Error handling strategy:
+- Try to initialize each client separately
+- If one fails, others can still work (graceful degradation)
+- Log detailed error messages for debugging
+- Provide fallback options when possible
+
+API Key Security:
+- Never hardcode API keys in source code
+- Use environment variables
+- Different keys for development vs production
+- Rotate keys regularly for security
+"""
+
+# Initialize OpenAI client with comprehensive error handling
 openai_client = None
 try:
     # Initialize OpenAI client with proper configuration
@@ -144,16 +375,16 @@ try:
     if openai_api_key:
         # Try different initialization approaches to handle system-specific issues
         try:
-            # Primary initialization method
+            # Primary initialization method with timeout
             openai_client = openai.OpenAI(
                 api_key=openai_api_key,
-                timeout=30.0,  # 30 second timeout
+                timeout=30.0,  # 30 second timeout for API calls
             )
             logger.info("OpenAI client initialized successfully (primary method)")
         except Exception as primary_error:
             logger.warning(f"Primary OpenAI initialization failed: {primary_error}")
             try:
-                # Alternative initialization without timeout
+                # Alternative initialization without timeout (some systems have issues with timeout parameter)
                 openai_client = openai.OpenAI(api_key=openai_api_key)
                 logger.info("OpenAI client initialized successfully (alternative method)")
             except Exception as alt_error:
@@ -167,29 +398,68 @@ except Exception as e:
     logger.error(f"Consider upgrading OpenAI library: pip install --upgrade openai")
     openai_client = None
 
-# Verify OpenAI client is working
+# Verify OpenAI client is working (basic validation)
 if openai_client:
     try:
-        # Test the client with a simple API call (this won't actually make a request)
+        # Test the client configuration (this doesn't make an actual API call)
         logger.info("OpenAI client verification successful")
     except Exception as e:
         logger.error(f"OpenAI client verification failed: {e}")
         openai_client = None
 
+# Initialize Google Gemini client
 try:
-    genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))  # Configure Google Gemini client
-    logger.info("Google API key configured successfully")
+    google_api_key = os.getenv('GOOGLE_API_KEY')
+    if google_api_key:
+        genai.configure(api_key=google_api_key)  # Configure Google Gemini client
+        logger.info("Google API key configured successfully")
+    else:
+        logger.warning("Google API key not found in environment variables")
 except Exception as e:
     logger.error(f"Failed to configure Google API key: {e}")
 
+# Initialize Anthropic Claude client
+anthropic_client = None
 try:
-    anthropic_client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))  # Initialize Anthropic client
-    logger.info("Anthropic client initialized successfully")
+    anthropic_api_key = os.getenv('ANTHROPIC_API_KEY')
+    if anthropic_api_key:
+        anthropic_client = anthropic.Anthropic(api_key=anthropic_api_key)  # Initialize Anthropic client
+        logger.info("Anthropic client initialized successfully")
+    else:
+        logger.warning("Anthropic API key not found in environment variables")
 except Exception as e:
     logger.error(f"Failed to initialize Anthropic client: {e}")
     anthropic_client = None
 
-# Authentication decorator
+"""
+Authentication Decorator
+
+What is a decorator?
+- A decorator is a function that wraps another function
+- It's like adding a security guard to a function
+- The guard checks credentials before letting the function run
+- If credentials are invalid, the guard blocks access
+
+How JWT authentication works:
+1. User logs in with email/password
+2. Server verifies credentials and creates a JWT token
+3. Server sends token back to user
+4. User includes token in Authorization header for future requests
+5. Server verifies token on each request using this decorator
+
+JWT Token Structure:
+- Header: Algorithm and token type
+- Payload: User data and expiration time
+- Signature: Proves token hasn't been tampered with
+
+Format: "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+Why use decorators for auth?
+- DRY principle: Don't repeat authentication code
+- Consistent security: Same auth logic everywhere
+- Easy to apply: Just add @auth_required above any function
+- Centralized: All auth logic in one place
+"""
 def auth_required(f):
     """
     Decorator to require authentication for endpoints.
@@ -197,41 +467,22 @@ def auth_required(f):
     This decorator checks for a valid JWT token in the Authorization header.
     If the token is valid, it sets the current user and continues with the request.
     If not, it returns a 401 Unauthorized response.
-    """
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        token = None
-        auth_header = request.headers.get('Authorization')
-        
-        if auth_header:
-            try:
-                # Extract token from "Bearer <token>" format
-                token = auth_header.split(' ')[1]
-            except IndexError:
-                return jsonify({'error': 'Invalid authorization header format'}), 401
-        
-        if not token:
-            return jsonify({'error': 'Authentication token is missing'}), 401
-        
-        try:
-            current_user = User.verify_auth_token(token)
-            if not current_user or not current_user.is_active:
-                return jsonify({'error': 'Invalid or expired token'}), 401
-            
-            # Set current user for the request
-            request.current_user = current_user
-            
-            # Update last active time
-            current_user.last_active = datetime.utcnow()
-            db.session.commit()
-            
-        except Exception as e:
-            logger.error(f"Token verification failed: {e}")
-            return jsonify({'error': 'Token verification failed'}), 401
-        
-        return f(*args, **kwargs)
     
-    return decorated_function
+    Usage:
+    @app.route('/api/protected-endpoint')
+    @auth_required
+    def protected_function():
+        # This function only runs if user is authenticated
+        # request.current_user is available here
+        return jsonify({"message": "You are authenticated!"})
+    
+    Error responses:
+    - 401: Missing Authorization header
+    - 401: Invalid token format
+    - 401: Token expired
+    - 401: Token signature invalid
+    - 401: User not found in database
+    """
 
 # Utility functions for validation
 def validate_password(password: str) -> List[str]:
