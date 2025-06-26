@@ -126,17 +126,33 @@ interface ChatMessageProps {
 }
 
 /*
-Main Component Function
+Main Component Function - Alternative Without React.FC
 
-React.FC<ChatMessageProps> tells TypeScript:
-- This is a React Functional Component
-- It expects props matching the ChatMessageProps interface
-- TypeScript will validate prop usage and provide autocomplete
+Instead of using React.FC<ChatMessageProps>, we can write the component
+in a simpler way that many developers prefer:
 
-The destructuring syntax { message, model } extracts the props
-from the props object for cleaner code.
+const ChatMessage = ({ message, model }: ChatMessageProps) => {
+
+This approach:
+- Is more explicit about the props type
+- Doesn't use React.FC (which some developers avoid)
+- Still provides full TypeScript support
+- Is the modern recommended way to write React components
+
+Why some developers prefer this approach:
+1. **Simpler syntax**: Less verbose than React.FC
+2. **More explicit**: The props type is clearly visible
+3. **Better IntelliSense**: Some IDEs provide better autocomplete
+4. **Community preference**: Many React developers have moved away from React.FC
+5. **Fewer imports**: You don't need to import React.FC specifically
+
+Both approaches work exactly the same way - this is just a different
+syntax for declaring the same component with the same TypeScript benefits.
+
+The destructuring syntax { message, model } still extracts the props
+from the props object for cleaner code inside the component.
 */
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, model }) => {
+const ChatMessage = ({ message, model }: ChatMessageProps) => {
   /*
   Determine if this is a user message
   
